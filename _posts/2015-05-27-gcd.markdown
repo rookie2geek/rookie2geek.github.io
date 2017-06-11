@@ -1,0 +1,226 @@
+---
+layout: post
+title:  GCD技术详解
+date:   2015-05-27 16:14:43
+categories: iOS, gcd
+---
+
+GCD技术详解
+
+# 背景介绍
+
+## 并发简介
+
+讲GCD就必须讲并发，因为GCD就是为并发而生的。并发就是同一时间执行多个任务。可以是单核CPU上通过时间分片的方式实现，也可以是多核CPU上真正的并发执行来实现。
+
+iOS和OS X的并发编程API从低级到高级分别是pthread，NSThread，GCD，NSOperation。我们在选用的时候应该从高到低选用，保证代码并发模型的简单。**灵活性导致复杂度和责任混乱**,越低级的代码使用起来越灵活，但相应的对使用者的要求也越高。
+
+## GCD简介
+
+GCD全称Grand Central Dispatch，由语言特性，运行时库以及系统级别的增强等组成，其是在OS X 10.6以及iOS 4引入的。通过GCD能大大的提升多核iOS和OS X设备上并发代码的执行效率。
+
+使用GCD之后，就不需要和threads直接打交道了，只需要在队列中添加block就好了，GCD管理了线程池，由其根据系统资源来决定使用哪个特定线程。这样的好处在于，线程现在由中央控制，不会出现太多线程的问题，而且线程的使用也可以更有效。
+
+这种方式改变了并发编程思想，以前，我们需要面向线程来编程，而现在我们则面向队列来编程。面向队列编程只需要关注任务的设计，而不用再考虑线程的创建和管理，明显要简单的多。
+
+## 为什么要有GCD
+
+随着多核CPU的出现，如何更好的使用多核CPU成为最主要的问题。传统的方式是创建多个线程，这种方式最大的问题是线程数不能根据核的数目的多少进行有效的伸缩。计算当前可用的核的数目对于使用thread的应用程序来说是非常困难的事情。
+
+iOS和OS X提供了足够简单的解决方案：GCD和Operation Queues。其解决思路主要是**将线程管理的代码移到系统级别，使用者只需要定义任务并将他们放到合适的队列**。
+
+<br>
+
+# GCD组成
+GCD是苹果的并发解决方案，可以从以下四个方面对GCD进行详细的阐述，其API也主要是这四个方面的，参考 [Grand Central Dispatch (GCD) Reference](https://developer.apple.com/library/mac/documentation/Performance/Reference/GCD_libdispatch_Ref/index.html)。
+
+## Dispatch Queues
+GCD提供了**3**种不同的队列:
+
++ 主队列
+	- 全局可获取的串行队列，运行在主线程（Thread 0）
++ 并发队列
+	- 任务按照他们被加入队列的顺序执行
+	- 不用等待前面的任务完成，可以尽可能多的开始任务执行
+	- GCD提供了4中全局并发队列
+	- 用户自定义并发队列
+{% highlight smalltalk %}
+// GCD提供的4中全局并发队列
+ #define DISPATCH_QUEUE_PRIORITY_HIGH        2
+ #define DISPATCH_QUEUE_PRIORITY_DEFAULT     0
+ #define DISPATCH_QUEUE_PRIORITY_LOW         (-2)
+ #define DISPATCH_QUEUE_PRIORITY_BACKGROUND  INT16_MIN
+
+dispatch_queue_t aQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+{% endhighlight %}
+
+{% highlight objective-c %}
+// 用户自定义并发队列
+// OS X v10.7 and later or iOS 4.3 and later
+ #define DISPATCH_QUEUE_SERIAL 
+ #define DISPATCH_QUEUE_CONCURRENT
+	
+dispatch_queue_t queue;
+queue = dispatch_queue_create("com.example.MyQueue", DISPATCH_QUEUE_CONCURRENT);
+{% endhighlight %}	
+
++ 串行队列
+	- 任务按照他们被加入队列的顺序执行
+	- 每次只能执行一个任务，只有上一个任务完成了，下一个任务才能开始
+
+{% highlight smalltalk %}
+// 用户自定义串行队列
+// OS X v10.7 before or iOS 4.3 before
+dispatch_queue_t queue;
+queue = dispatch_queue_create("com.example.MyQueue", NULL);
+{% endhighlight %}
+
+{% highlight objective-c %}
+// 用户自定义串行队列
+// OS X v10.7 and later or iOS 4.3 and later
+ #define DISPATCH_QUEUE_SERIAL 
+ #define DISPATCH_QUEUE_CONCURRENT
+
+dispatch_queue_t queue;
+queue = dispatch_queue_create("com.example.MyQueue", DISPATCH_QUEUE_SERIAL);
+{% endhighlight %}
+
+### Root以及预先定义的queues
+在苹果的文档中是“global” queues，libdispatch叫做“root” queue。带有overcommit的队列表示，每当有任务提交的时候，系统都会新开一个线程处理，这样就不会造成某个线程过载（overcommit）
+
+|Index|serial #|queue name|
+|0|4|com.apple.root.low-priority|
+|1|5|com.apple.root.low-overcommit-priority|
+|2|6|com.apple.root.default-priority|
+|3|7|com.apple.root.default-overcommit-priority|
+|4|8|com.apple.root.high-priority|
+|5|9|com.apple.root.high-overcommit-priority|
+|6|10|com.apple.root.background-priority|
+|7|11|com.apple.root.background-overcommit-priority|
+
+## Dispatch groups
+dispatch groups提供了一种同步机制，可以实现某个任务的执行依赖于其他任务的完成。
+{% highlight smalltalk %}
+dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+dispatch_group_t group = dispatch_group_create();
+
+// add a task to group
+dispatch_group_async(group, queue, ^{
+	//Some asynchronous work
+});
+
+// Do some other work while the tasks execute
+
+// When you cannnot make any more forward progress
+// wait on the group to block the current thread
+dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+
+// Release the group when it is no longer needed
+dispatch_release(group)
+
+{% endhighlight %}
+
+## Dispatch Semaphores
+dispatch semaphore类似于传统的信号量，作用也类似。
+
+## Dispatch Sources
+dispatch source是一种基本的数据类型，GCD支持以下类型的dispatch sources
+
++ Timer dispatch source：产生周期性的通知
++ Signal dispatch source：UNIX信号通知
++ Descriptor source：文件或者socket操作通知
++ Process dispatch source：进程相关事件通知
++ Mach port dispatch source：Mach相关事件通知
++ Custom dispatch sourceno：自定义并触发的通知
+
+
+<br>
+
+# 代码实践
+下面用于记录gcd各种实用的使用
+
++ singleton
+{% highlight smalltalk %}
++ (instancetype)sharedInstance
+{
+    static dispatch_once_t once;
+    static id sharedInstance;
+    dispatch_once(&once, ^{
+        sharedInstance = [[self alloc] init];
+    });
+    return sharedInstance;
+}
+{% endhighlight %}
+
++ 保护资源
+{% highlight smalltalk %}
+- (void)setCount: (NSUInteger)count forKey:(NSString *)key
+{
+	key = [key copy];
+	dispatch_async(self.isolationQueue, ^(){
+		if(count == 0) {
+			[self.counts removeObjectForKey:key];
+		}else{
+			self.counts[key] = @(count);
+		}
+	}); 
+}
+
+- (NSUInteger)countForKey:(NSString *)key
+{
+	__block NSUInteger count;
+	dispatch_sync(self.isolationQueue, ^(){
+		NSNumber *n = self.counts[key];
+		count = [n unsignedIntegerValue];
+	});
+
+	return count;
+}
+{% endhighlight %}
+这样self.count就不会有并发问题了。self.isolationQueue是串行queue
+
++ 一个资源，多读少写
+{% highlight smalltalk %}
+// 创建并发queue
+self.isolationQueue = dispatch_queue_create([label UTF8String], DISPATCH_QUEUE_CONCURRENT);
+
+- (void)setCount:(NSUInteger)count forKey:(NSString *)key
+{
+	key = [key copy];
+	// 屏障函数，实现资源保护
+	dispatch_barrier_async(self.isolationQueue, ^(){
+		if(count == 0) {
+			[self.counts removeObjectForKey: key];
+		}else{
+			self.counts[key] = @(count);
+		}
+	});
+}
+
+- (NSUInteger)countForKey:(NSString *)key
+{
+	__block NSUInteger count;
+	dispatch_sync(self.isolationQueue, ^(){
+		NSNumber *n = self.counts[key];
+		count = [n unsignedIntegerValue];
+	});
+
+	return count;
+}
+{% endhighlight %}
+
+<br>
+
+# 其他
+
+## Operation Queues
+cocoa operations是采用面向对象的方式封装异步任务。他们可以自己执行，也可以结合operation queue来执行。关于操作队列详细信息请参考[Operation Queues](https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/OperationObjects/OperationObjects.html)。
+
+<br>
+
+# 参考
+
+* [concurrency-apis-and-pitfalls](http://www.objc.io/issue-2/concurrency-apis-and-pitfalls.html)
+* [Grand Central Dispatch (GCD) Reference](https://developer.apple.com/library/mac/documentation/Performance/Reference/GCD_libdispatch_Ref/index.html)
+* [ConcurrencyProgrammingGuide](https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40008091)
+* [Low-Level Concurrency APIs](http://www.objc.io/issue-2/low-level-concurrency-apis.html)

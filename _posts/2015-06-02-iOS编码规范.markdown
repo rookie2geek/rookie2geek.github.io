@@ -1,0 +1,32 @@
+---
+layout: post
+title: "iOS编程规范实践"
+date: 2015-06-02 14:42:46
+categories: iOS
+---
+
+iOS编程规范总结，好吧，我也不知道为啥会有这篇。
+
+# 代码结构
+
++ 善用@class
+
+{% highlight objective-c %}
+
+// example.h
+
+@class Item;
+
+@interface Example : NSObject
+@property Item* item;
+@end
+
+@interface Item : NSObject
+@property NSString *string;
+@end
+{% endhighlight %}
+
+# 通知
++ 通知的NSString放在.h文件中，让使用者知道通知的存在
++ 通知可能有最灵活的异步方式
+

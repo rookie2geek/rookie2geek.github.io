@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>iOS汇编调试</title>
+  <meta name="description" content="最近项目出现线上奔溃，解crash的过程中调试了汇编，特此记录。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/ios/assembly/2016/12/28/iOS%E6%B1%87%E7%BC%96%E8%B0%83%E8%AF%95.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">iOS汇编调试</h1>
+    <p class="post-meta">Dec 28, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>最近项目出现线上奔溃，解crash的过程中调试了汇编，特此记录。</p>
+
+<h1 id="section">奔溃日志</h1>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>OS Version:      iPhone OS 9.2 (13C75)
+Report Version:  104
+Exception Type:  SIGSEGV
+Exception Codes: SEGV_MAPERR at 0x145e4bec8
+Crashed Thread:  26
+
+
+Thread 26 Crashed:
+0   libobjc.A.dylib    0x00000001943c80b4 objc_retain + 20
+1   libobjc.A.dylib    0x00000001943c812c objc_storeStrong + 44
+2   AFWealth           0x0000000101af23dc -[SPDYSession initWithOrigin:configuration:cellular:error:] + 108
+</code></pre>
+</div>
+
+<p>系统在objc_storeStrong的时候会retain对象，当线程25正在retain的时候，却发现该对象编程野指针了，导致retain奔溃，但从crash日志中没法看出是retain哪个对象的时候发生了变化。</p>
+
+<p>找出这个对象就需要使用调试汇编。</p>
+
+<h1 id="section-1">储备知识</h1>
+<ol>
+  <li><a href="https://www.raywenderlich.com/37181/ios-assembly-tutorial">iOS Assembly Tutorial: Understanding ARM</a></li>
+  <li><a href="https://en.wikibooks.org/wiki/X86_Assembly">X86_Assembly</a></li>
+</ol>
+
+<p>需要注意两点</p>
+
+<ul>
+  <li>calling convention</li>
+  <li>iOS的汇编代码是AT&amp;T 语法的</li>
+</ul>
+
+<h1 id="section-2">汇编调试</h1>
+<p>根据crash堆栈打符号断点，命中后在objc_storeStrong打断点进行逐步调试。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">id</span> <span class="nf">objc_storeStrong</span><span class="p">(</span><span class="n">id</span> <span class="o">*</span><span class="n">object</span><span class="p">,</span> <span class="n">id</span> <span class="n">value</span><span class="p">)</span> <span class="p">{</span>
+  <span class="n">value</span> <span class="o">=</span> <span class="p">[</span><span class="n">value</span> <span class="n">retain</span><span class="p">];</span>
+  <span class="n">id</span> <span class="n">oldValue</span> <span class="o">=</span> <span class="o">*</span><span class="n">object</span><span class="p">;</span>
+  <span class="o">*</span><span class="n">object</span> <span class="o">=</span> <span class="n">value</span><span class="p">;</span>
+  <span class="p">[</span><span class="n">oldValue</span> <span class="n">release</span><span class="p">];</span>
+  <span class="k">return</span> <span class="n">value</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>从上述源码可以知道，<code class="highlighter-rouge">objc_storeStrong</code>有两个参数，第二个参数就是我们retain的对象。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>0x1061ffb63 &lt;+99&gt;:   movq   %rcx, %rdi
+0x1061ffb66 &lt;+102&gt;:  movq   %rdx, %rsi
+0x1061ffb69 &lt;+105&gt;:  callq  0x10764e60e               ; symbol stub for: objc_storeStrong
+</code></pre>
+</div>
+
+<p>根据FASTCALL的调用规范，我们查看<code class="highlighter-rouge">rdx</code>寄存器的值。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>(lldb) x/a $rdx
+0x608001e60040: 0x00000001087bf8d0 (void *)0x00000001087bf8f8: SPDYConfiguration
+
+或者
+
+(lldb) po [$rdx class]
+SPDYConfiguration
+</code></pre>
+</div>
+
+<p>因而得之在这里被retain的是 SPDYConfiguration对象</p>
+
+<h1 id="section-3">结论</h1>
+<p>从上面的分析知道是有个SPDYConfiguration对象有多线程问题，然后再查查源码不久就解决问题了。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-12-28 00:00:00 +0800" data-title="iOS汇编调试" data-url="/ios/assembly/2016/12/28/iOS%E6%B1%87%E7%BC%96%E8%B0%83%E8%AF%95.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

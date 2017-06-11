@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>GCD源码分析</title>
+  <meta name="description" content="最近在浏览React Native代码的时候发现有提到Main Queue和Main Thread的区别，很早就有阅读GCD源码的冲动，这回总算找到机会了。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/gcd/2016/09/16/GCD%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">GCD源码分析</h1>
+    <p class="post-meta">Sep 16, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>最近在浏览React Native代码的时候发现有提到Main Queue和Main Thread的区别，很早就有阅读GCD源码的冲动，这回总算找到机会了。</p>
+
+<p>阅读源码之前先给个结论：Main Thread 和 Main Queue是两个不同的东西。</p>
+
+<ul>
+  <li>Main Queue IS bound to Main Thread.</li>
+  <li>Main Thread IS NOT bound to Main Queue.</li>
+</ul>
+
+<h1 id="section">源码剖析</h1>
+
+<h2 id="section-1">关键点</h2>
+
+<h3 id="queue">queue和线程的关系</h3>
+<p><img src="https://o8ouygf5v.qnssl.com/gcd-pool.png" alt="gcd的线程池" />
+<strong>JUST REMEMBER THIS PNG</strong>!!</p>
+
+<h3 id="slowpath-vs-fastpath">slowpath vs fastpath</h3>
+<p>可能大家对<code class="highlighter-rouge">__builtin_expect</code>比较熟悉，这是编译器可以用来优化执行速度的函数。
+程序员在写if条件的时候，可能知道比较的值更可能是哪种情况，因此就可以使用<code class="highlighter-rouge">fastpath</code>
+或者<code class="highlighter-rouge">slowpath</code>来告诉编译器，让编译来帮忙优化。</p>
+
+<ul>
+  <li><code class="highlighter-rouge">fastpath</code>表示条件更可能成立</li>
+  <li><code class="highlighter-rouge">slowpath</code>表示条件更不可能成立</li>
+</ul>
+
+<p>所以简单的来说，当我们遇到这个东西的时候，直接忽略，并不会影响我们对代码的理解。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#define fastpath(x) ((typeof(x))__builtin_expect((long)(x), ~0l))
+#define slowpath(x) ((typeof(x))__builtin_expect((long)(x), 0l))
+</span></code></pre>
+</div>
+
+<h3 id="function-vs-block">function vs block</h3>
+<p>gcd支持function和block的执行，相应的其提供了两种方法来支持function和block的入队，简单的举个例子。所以当我们看到不带f和带f的同名函数，默认他们干的是同一回事。</p>
+
+<p>block的执行底层调用的是function的执行。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 执行block
+</span><span class="kt">void</span> <span class="n">dispatch_async</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">work</span><span class="p">)(</span><span class="kt">void</span><span class="p">));</span>
+<span class="c1">// 执行function
+</span><span class="kt">void</span> <span class="n">dispatch_async_f</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<h3 id="section-2">常用宏定义</h3>
+<p>libdispatch为了在保证性能的情况下，尽量增加代码的可读性，大量的使用了宏。
+因此了解结构体之前，我们需要先知道几个宏定义，方便后续分析代码.</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// dispatch结构体定义宏
+</span><span class="cp">#define DISPATCH_DECL(name) typedef struct name##_s *name##_t
+</span></code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// os object头部定义宏
+</span><span class="cp">#define _OS_OBJECT_HEADER(isa, ref_cnt, xref_cnt)
+</span>  <span class="n">isa</span>               <span class="c1">// isa
+</span>  <span class="n">ref_cnt</span>           <span class="c1">// 引用计数，这是内部gcd内部使用的计数器
+</span>  <span class="n">xref_cnt</span>          <span class="c1">// 外部引用计数，这是gcd外部使用的计数器，两者都为0的时候才能dispose
+</span></code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// dispatch结构体头部
+</span><span class="cp">#define DISPATCH_STRUCT_HEADER(x) 
+</span>  <span class="n">_OS_OBJECT_HEADER</span>
+  <span class="n">do_next</span>                             <span class="c1">// 下一个do
+</span>  <span class="n">do_targetq</span>                          <span class="c1">// 目标queue
+</span>  <span class="n">do_ctxt</span>                             <span class="c1">// do上下文
+</span>  <span class="n">do_finalizer</span>                        <span class="c1">// do销毁时候调用函数
+</span>  <span class="n">do_suspend_cnt</span>                      <span class="c1">// suspend计数，用作暂停标志
+</span></code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// dispatch continuation的头部
+</span><span class="cp">#define DISPATCH_CONTINUATION_HEADER(x) 
+</span>  <span class="n">_OS_OBJECT_HEADER</span>
+  <span class="n">do_next</span>                                <span class="c1">// 下一个do
+</span>  <span class="n">dc_func</span>                                <span class="c1">// dc封装的函数
+</span>  <span class="n">dc_ctxt</span>                                <span class="c1">// dc封装的上下文
+</span>  <span class="n">dc_data</span>                                <span class="c1">// dc封装的数据
+</span>  <span class="n">dc_other</span>                               <span class="c1">// dc封装的其他信息
+</span></code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// dispatch queue头部
+</span><span class="cp">#define DISPATCH_QUEUE_HEADER 
+</span>  <span class="n">dq_running</span><span class="p">;</span>                           <span class="c1">// 队列正在运行的任务数
+</span>  <span class="n">dq_width</span><span class="p">;</span>                             <span class="c1">// 队列可以并发的数目
+</span>  <span class="n">dq_items_tail</span><span class="p">;</span>                        <span class="c1">// 队列末尾节点
+</span>  <span class="n">dq_items_head</span><span class="p">;</span>                        <span class="c1">// 队列开头节点
+</span>  <span class="n">dq_serialnum</span>                          <span class="c1">// 队列序列号，每个队列都有唯一的序列号
+</span>  <span class="n">dq_specific_q</span>                         <span class="c1">// 
+</span></code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// dispatch vtable头部
+</span><span class="cp">#define DISPATCH_VTABLE_HEADER(x) 
+</span>  <span class="n">do_type</span>                               <span class="c1">// do类型
+</span>  <span class="n">do_kind</span>                               <span class="c1">// 种类，例如：semaphore/group/queue...
+</span>  <span class="n">do_debug</span>                              <span class="c1">// debug回调
+</span>  <span class="n">do_invoke</span>                             <span class="c1">// invoke回调，唤醒队列回调
+</span>  <span class="n">do_probe</span>                              <span class="c1">// probe回调，important
+</span>  <span class="n">do_dispose</span>                            <span class="c1">// dispose回调，销毁队列的方法
+</span></code></pre>
+</div>
+
+<h2 id="gcd">GCD结构体</h2>
+<p>因为本文只关心queue的实现，所以暂时省略了其他结构体，有兴趣的童鞋可以直接下源码看。</p>
+
+<h3 id="osobjectt">os_object_t</h3>
+<p>系统基类</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">typedef</span> <span class="k">struct</span> <span class="n">_os_object_s</span> <span class="p">{</span>
+  <span class="n">_OS_OBJECT_HEADER</span><span class="p">(</span>
+  <span class="k">const</span> <span class="n">_os_object_class_s</span> <span class="o">*</span><span class="n">os_obj_isa</span><span class="p">,</span>   
+  <span class="n">os_obj_ref_cnt</span><span class="p">,</span>                         
+  <span class="n">os_obj_xref_cnt</span><span class="p">);</span>                       
+<span class="p">}</span> <span class="n">_os_object_s</span><span class="p">;</span>
+</code></pre>
+</div>
+
+<h3 id="dispatchobjectt">dispatch_object_t</h3>
+<p>该结构体可以看成gcd的基类。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">typedef</span> <span class="k">union</span> <span class="p">{</span>
+  <span class="k">struct</span> <span class="n">_os_object_s</span> <span class="o">*</span><span class="n">_os_obj</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_object_s</span> <span class="o">*</span><span class="n">_do</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_continuation_s</span> <span class="o">*</span><span class="n">_dc</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_queue_s</span> <span class="o">*</span><span class="n">_dq</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_queue_attr_s</span> <span class="o">*</span><span class="n">_dqa</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_group_s</span> <span class="o">*</span><span class="n">_dg</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_source_s</span> <span class="o">*</span><span class="n">_ds</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_source_attr_s</span> <span class="o">*</span><span class="n">_dsa</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_semaphore_s</span> <span class="o">*</span><span class="n">_dsema</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_data_s</span> <span class="o">*</span><span class="n">_ddata</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_io_s</span> <span class="o">*</span><span class="n">_dchannel</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_operation_s</span> <span class="o">*</span><span class="n">_doperation</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_disk_s</span> <span class="o">*</span><span class="n">_ddisk</span><span class="p">;</span>
+<span class="p">}</span> <span class="n">dispatch_object_t</span> <span class="n">__attribute__</span><span class="p">((</span><span class="n">__transparent_union__</span><span class="p">));</span>
+</code></pre>
+</div>
+<p>通过上面的结构体定义可以发现，<code class="highlighter-rouge">dispatch_object_t</code>可以是union结构体中任何一种类型。</p>
+
+<h3 id="dispatchcontinuationt">dispatch_continuation_t</h3>
+<p>该结构体主要用来封装block和function</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">struct</span> <span class="n">dispatch_continuation_s</span> <span class="p">{</span>
+  <span class="n">DISPATCH_CONTINUATION_HEADER</span><span class="p">(</span><span class="n">continuation</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+
+<h2 id="dispatchqueuet">dispatch_queue_t</h2>
+<p>队列结构体，可能是gcd最重要的结构体了。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">struct</span> <span class="n">dispatch_queue_s</span> <span class="p">{</span>
+  <span class="n">DISPATCH_STRUCT_HEADER</span><span class="p">(</span><span class="n">queue</span><span class="p">);</span>
+  <span class="n">DISPATCH_QUEUE_HEADER</span><span class="p">;</span>
+  <span class="kt">char</span> <span class="n">dq_label</span><span class="p">[</span><span class="n">DISPATCH_QUEUE_MIN_LABEL_SIZE</span><span class="p">];</span> <span class="c1">// must be last
+</span>  <span class="kt">char</span> <span class="n">_dq_pad</span><span class="p">[</span><span class="n">DISPATCH_QUEUE_CACHELINE_PAD</span><span class="p">];</span>   <span class="c1">// for static queues only
+</span><span class="p">};</span>
+</code></pre>
+</div>
+
+<h2 id="dispatchqueueattrt">dispatch_queue_attr_t</h2>
+<p>队列属性结构体。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">struct</span> <span class="n">dispatch_queue_attr_s</span> <span class="p">{</span>
+  <span class="n">DISPATCH_STRUCT_HEADER</span><span class="p">(</span><span class="n">queue_attr</span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+
+<h2 id="api">常用API解析</h2>
+<p>gcd提供了非常多的功能来简化针对多核设备的代码编写，这里我们慢慢添加对常用API的源码剖析。</p>
+
+<h3 id="dispatchgetglobalqueue">dispatch_get_global_queue</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">dispatch_queue_t</span>
+<span class="nf">dispatch_get_global_queue</span><span class="p">(</span><span class="kt">long</span> <span class="n">priority</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">DISPATCH_QUEUE_OVERCOMMIT</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="k">return</span> <span class="n">_dispatch_get_root_queue</span><span class="p">(</span><span class="n">priority</span><span class="p">,</span>
+      <span class="n">flags</span> <span class="o">&amp;</span> <span class="n">DISPATCH_QUEUE_OVERCOMMIT</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>当我们获取global queue来使用的时候，其实质上通过<code class="highlighter-rouge">_dispatch_get_root_queue</code>来获取的非overcommit的预先生成的队列的。</p>
+
+<p><code class="highlighter-rouge">_dispatch_get_root_queue</code>是从结构体<code class="highlighter-rouge">_dispatch_root_queues</code>中获取相应的优先级的队列。<code class="highlighter-rouge">_dispatch_root_queues</code>区分是否overcommit，定义了4中优先级的队列，他们分别是（参考前文的图）。最后1bit是1的代表overcommit。overcommit用来控制线程数能不能超越物理内核数，显然通过该接口获得的队列不会给系统创建过多的队列。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>  <span class="n">DISPATCH_ROOT_QUEUE_IDX_LOW_PRIORITY</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_LOW_OVERCOMMIT_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_DEFAULT_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_DEFAULT_OVERCOMMIT_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_HIGH_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_HIGH_OVERCOMMIT_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_BACKGROUND_PRIORITY</span><span class="p">,</span>
+  <span class="n">DISPATCH_ROOT_QUEUE_IDX_BACKGROUND_OVERCOMMIT_PRIORITY</span><span class="p">,</span>
+</code></pre>
+</div>
+
+<p>最后提及一下，<code class="highlighter-rouge">_dispatch_root_queues</code>对应的thread实现在<code class="highlighter-rouge">_dispatch_root_queue_contexts</code>中，每一个context都是一个线程池，每个线程池的最大线程数限制是255。</p>
+
+<h3 id="dispatchgetcurrentqueue">dispatch_get_current_queue</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">dispatch_queue_t</span>
+<span class="nf">dispatch_get_current_queue</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">return</span> <span class="n">_dispatch_queue_get_current</span><span class="p">()</span> <span class="o">?:</span> <span class="n">_dispatch_get_root_queue</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">static</span> <span class="kr">inline</span> <span class="n">dispatch_queue_t</span>
+<span class="nf">_dispatch_queue_get_current</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">return</span> <span class="p">(</span><span class="n">dispatch_queue_t</span><span class="p">)</span><span class="n">_dispatch_thread_getspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>可以发现当我们通过<code class="highlighter-rouge">dispatch_get_current_queue</code>来获取当前运行的队列的时候，我们是通过TSD(Thread Specific Data)来确定到底当前是运行在那个queue上的，每当我们切换queue的时候，都是通过<code class="highlighter-rouge">_dispatch_thread_setspecific</code>来设置当前queue。</p>
+
+<p>这里主要涉及到TSD，也有叫TLD的，是个比较有意思的技术。</p>
+
+<h3 id="dispatchqueuecreate">dispatch_queue_create</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">dispatch_queue_t</span>
+<span class="nf">dispatch_queue_create</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">label</span><span class="p">,</span> <span class="n">dispatch_queue_attr_t</span> <span class="n">attr</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">;</span>
+  <span class="kt">size_t</span> <span class="n">label_len</span><span class="p">;</span>
+
+  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">label</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="s">""</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="n">label_len</span> <span class="o">=</span> <span class="n">strlen</span><span class="p">(</span><span class="n">label</span><span class="p">);</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">label_len</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">DISPATCH_QUEUE_MIN_LABEL_SIZE</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="p">{</span>
+    <span class="n">label_len</span> <span class="o">=</span> <span class="p">(</span><span class="n">DISPATCH_QUEUE_MIN_LABEL_SIZE</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="c1">// XXX switch to malloc()
+</span>  <span class="n">dq</span> <span class="o">=</span> <span class="n">_dispatch_alloc</span><span class="p">(</span><span class="n">DISPATCH_VTABLE</span><span class="p">(</span><span class="n">queue</span><span class="p">),</span>
+      <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">dispatch_queue_s</span><span class="p">)</span> <span class="o">-</span> <span class="n">DISPATCH_QUEUE_MIN_LABEL_SIZE</span> <span class="o">-</span>
+      <span class="n">DISPATCH_QUEUE_CACHELINE_PAD</span> <span class="o">+</span> <span class="n">label_len</span> <span class="o">+</span> <span class="mi">1</span><span class="p">);</span>
+
+  <span class="n">_dispatch_queue_init</span><span class="p">(</span><span class="n">dq</span><span class="p">);</span>
+  <span class="n">strcpy</span><span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_label</span><span class="p">,</span> <span class="n">label</span><span class="p">);</span>
+
+  <span class="k">if</span> <span class="p">(</span><span class="n">fastpath</span><span class="p">(</span><span class="o">!</span><span class="n">attr</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">dq</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">fastpath</span><span class="p">(</span><span class="n">attr</span> <span class="o">==</span> <span class="n">DISPATCH_QUEUE_CONCURRENT</span><span class="p">))</span> <span class="p">{</span>
+    <span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_width</span> <span class="o">=</span> <span class="n">UINT32_MAX</span><span class="p">;</span>
+    <span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span> <span class="o">=</span> <span class="n">_dispatch_get_root_queue</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">false</span><span class="p">);</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="n">dispatch_debug_assert</span><span class="p">(</span><span class="o">!</span><span class="n">attr</span><span class="p">,</span> <span class="s">"Invalid attribute"</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="k">return</span> <span class="n">dq</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span>
+<span class="nf">_dispatch_queue_init</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_next</span> <span class="o">=</span> <span class="p">(</span><span class="k">struct</span> <span class="n">dispatch_queue_s</span> <span class="o">*</span><span class="p">)</span><span class="n">DISPATCH_OBJECT_LISTLESS</span><span class="p">;</span>
+  <span class="c1">// Default target queue is overcommit!
+</span>  <span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span> <span class="o">=</span> <span class="n">_dispatch_get_root_queue</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
+  <span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_running</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_width</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_serialnum</span> <span class="o">=</span> <span class="n">dispatch_atomic_inc</span><span class="p">(</span><span class="o">&amp;</span><span class="n">_dispatch_queue_serial_numbers</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>当我们调用<code class="highlighter-rouge">dispatch_queue_create</code>进行queue的创建的时候，其会首先调用<code class="highlighter-rouge">_dispatch_queue_init</code>初始化一个queue，该queue默认是Default的优先级(还记得前文的图么？)，并且dq_width是1，也就是串行队列，并且序列号加1。</p>
+
+<p>如果是并发队列的话，会将dq_width改成UINT32_MAX，并且将目标queue设置成非overcommit的。overcommit如果被设置成true，那就意味着可以创建超过物理核数目的线程数。因此可以发现，自定义并发队列线程数目是不会超过物理内核数的，而串行队列一般是没有这个限制的。</p>
+
+<p>前面说到序列号加1了，那序列号是干什么的呢？在源码中有这样一段注释。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// skip zero
+// 1 - main_q
+// 2 - mgr_q
+// 3 - _unused_
+// 4,5,6,7,8,9,10,11 - global queues
+// we use 'xadd' on Intel, so the initial value == next assigned
+</span></code></pre>
+</div>
+<p>可以发现，序列号是1的时候表示main queue，2的时候表示manager queue，3没有使用，4到11表示global queue，再往后就是用户自定义queue了。
+那接下来我们看看序列1和序列2的queue是怎么定义的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">struct</span> <span class="n">dispatch_queue_s</span> <span class="n">_dispatch_main_q</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="p">.</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="n">DISPATCH_VTABLE</span><span class="p">(</span><span class="n">queue</span><span class="p">),</span>
+<span class="cp">#if !DISPATCH_USE_RESOLVERS
+</span>  <span class="p">.</span><span class="n">do_targetq</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_dispatch_root_queues</span><span class="p">[</span>
+      <span class="n">DISPATCH_ROOT_QUEUE_IDX_DEFAULT_OVERCOMMIT_PRIORITY</span><span class="p">],</span>
+<span class="cp">#endif
+</span>  <span class="p">.</span><span class="n">do_ref_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_GLOBAL_REFCNT</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_xref_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_GLOBAL_REFCNT</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_suspend_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_SUSPEND_LOCK</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_label</span> <span class="o">=</span> <span class="s">"com.apple.main-thread"</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_running</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_width</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_serialnum</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+<p>值得说明的是，main queue的目标queue也只是一个优先级为default的overcommit queue，其背后也是普通的线程池，nothing special。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">struct</span> <span class="n">dispatch_queue_s</span> <span class="n">_dispatch_mgr_q</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="p">.</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="n">DISPATCH_VTABLE</span><span class="p">(</span><span class="n">queue_mgr</span><span class="p">),</span>
+  <span class="p">.</span><span class="n">do_ref_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_GLOBAL_REFCNT</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_xref_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_GLOBAL_REFCNT</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_suspend_cnt</span> <span class="o">=</span> <span class="n">DISPATCH_OBJECT_SUSPEND_LOCK</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_targetq</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">_dispatch_root_queues</span><span class="p">[</span>
+      <span class="n">DISPATCH_ROOT_QUEUE_IDX_HIGH_OVERCOMMIT_PRIORITY</span><span class="p">],</span>
+  <span class="p">.</span><span class="n">dq_label</span> <span class="o">=</span> <span class="s">"com.apple.libdispatch-manager"</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_width</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">dq_serialnum</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+<p>该队列是用来管理GCD内部的任务的，比如对于各类Source的管理等。</p>
+
+<h3 id="dispatchsync">dispatch_sync</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">dispatch_sync</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">work</span><span class="p">)(</span><span class="kt">void</span><span class="p">))</span>
+<span class="p">{</span>
+<span class="cp">#if DISPATCH_COCOA_COMPAT
+</span>  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">dq</span> <span class="o">==</span> <span class="o">&amp;</span><span class="n">_dispatch_main_q</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">_dispatch_sync_slow</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">work</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="cp">#endif
+</span>  <span class="k">struct</span> <span class="n">Block_basic</span> <span class="o">*</span><span class="n">bb</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="n">work</span><span class="p">;</span>
+  <span class="n">dispatch_sync_f</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">work</span><span class="p">,</span> <span class="p">(</span><span class="n">dispatch_function_t</span><span class="p">)</span><span class="n">bb</span><span class="o">-&gt;</span><span class="n">Block_invoke</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>无论走哪个分支，深入查看之后，可以发现，其最终走的都是<code class="highlighter-rouge">dispatch_sync_f</code>，通过<code class="highlighter-rouge">_dispatch_Block_copy</code>或者<code class="highlighter-rouge">Block_basic</code>来实现block到function的转换。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">dispatch_sync_f</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">fastpath</span><span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_width</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">dispatch_barrier_sync_f</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="o">!</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">))</span> <span class="p">{</span>
+    <span class="c1">// the global root queues do not need strict ordering
+</span>    <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">dispatch_atomic_add2o</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dq_running</span><span class="p">,</span> <span class="mi">2</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">_dispatch_sync_f_invoke</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="n">_dispatch_sync_f2</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>如果dq_width是1的话，也就是dq是串行队列的话，必须要等待前面的任务执行完成之后才能执行该任务，因此会调用<code class="highlighter-rouge">dispatch_barrier_sync_f</code>。barrier的实现是依靠信号量机制来保证的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">dispatch_barrier_sync_f</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span>
+    <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="c1">// 1) ensure that this thread hasn't enqueued anything ahead of this call
+</span>  <span class="c1">// 2) the queue is not suspended
+</span>  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_items_tail</span><span class="p">)</span> <span class="o">||</span> <span class="n">slowpath</span><span class="p">(</span><span class="n">DISPATCH_OBJECT_SUSPENDED</span><span class="p">(</span><span class="n">dq</span><span class="p">))){</span>
+    <span class="k">return</span> <span class="n">_dispatch_barrier_sync_f_slow</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="o">!</span><span class="n">dispatch_atomic_cmpxchg2o</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dq_running</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span> <span class="p">{</span>
+    <span class="c1">// global queues and main queue bound to main thread always falls into
+</span>    <span class="c1">// the slow case
+</span>    <span class="k">return</span> <span class="n">_dispatch_barrier_sync_f_slow</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">_dispatch_barrier_sync_f_recurse</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="n">_dispatch_barrier_sync_f_invoke</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>如果当前队列中有对象或者当前队列处于暂停状态或者当前队列没有运行任何任务的时候，就走<code class="highlighter-rouge">_dispatch_barrier_sync_f_slow</code>慢通道，否则的话就直接调用<code class="highlighter-rouge">_dispatch_barrier_sync_f_invoke</code>。可以发现<code class="highlighter-rouge">dispatch_sync</code>一般来说都是在<strong>当前线程</strong>执行的，不进行线程的切换，这一点还是要特别注意的。只有走<code class="highlighter-rouge">slow</code>的时候，才会做线程切换。下面就看下走<code class="highlighter-rouge">slow</code>路径是什么样的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">_dispatch_barrier_sync_f_slow</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span>
+    <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="c1">// It's preferred to execute synchronous blocks on the current thread
+</span>  <span class="c1">// due to thread-local side effects, garbage collection, etc. However,
+</span>  <span class="c1">// blocks submitted to the main thread MUST be run on the main thread
+</span>
+  <span class="k">struct</span> <span class="n">dispatch_barrier_sync_slow2_s</span> <span class="n">dbss2</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">.</span><span class="n">dbss2_dq</span> <span class="o">=</span> <span class="n">dq</span><span class="p">,</span>
+<span class="cp">#if DISPATCH_COCOA_COMPAT || DISPATCH_LINUX_COMPAT
+</span>    <span class="p">.</span><span class="n">dbss2_func</span> <span class="o">=</span> <span class="n">func</span><span class="p">,</span>
+    <span class="p">.</span><span class="n">dbss2_ctxt</span> <span class="o">=</span> <span class="n">ctxt</span><span class="p">,</span>
+<span class="cp">#endif
+</span>    <span class="p">.</span><span class="n">dbss2_sema</span> <span class="o">=</span> <span class="n">_dispatch_get_thread_semaphore</span><span class="p">(),</span>
+  <span class="p">};</span>
+  <span class="k">struct</span> <span class="n">dispatch_barrier_sync_slow_s</span> <span class="n">dbss</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">.</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)(</span><span class="n">DISPATCH_OBJ_BARRIER_BIT</span> <span class="o">|</span>
+        <span class="n">DISPATCH_OBJ_SYNC_SLOW_BIT</span><span class="p">),</span>
+    <span class="p">.</span><span class="n">dc_func</span> <span class="o">=</span> <span class="n">_dispatch_barrier_sync_f_slow_invoke</span><span class="p">,</span>
+    <span class="p">.</span><span class="n">dc_ctxt</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">dbss2</span><span class="p">,</span>
+  <span class="p">};</span>
+  <span class="n">_dispatch_queue_push</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="o">&amp;</span><span class="n">dbss</span><span class="p">);</span>
+
+  <span class="n">_dispatch_thread_semaphore_wait</span><span class="p">(</span><span class="n">dbss2</span><span class="p">.</span><span class="n">dbss2_sema</span><span class="p">);</span>
+  <span class="n">_dispatch_put_thread_semaphore</span><span class="p">(</span><span class="n">dbss2</span><span class="p">.</span><span class="n">dbss2_sema</span><span class="p">);</span>
+  <span class="p">......</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>代码比较长，截取开头一部分，我们可以发现，其通过信号量来同步任务的执行，需要切换线程。</p>
+
+<p>简单看下<code class="highlighter-rouge">_dispatch_function_invoke</code>，主要关注queue和thread的关系并非一一对应的。queue是基于thread的，我们在使用queue的时候，就不应该再操作thread，防止出现意外的情况。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span>
+<span class="nf">_dispatch_function_invoke</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span>
+    <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">dispatch_queue_t</span> <span class="n">old_dq</span> <span class="o">=</span> <span class="n">_dispatch_thread_getspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">);</span>
+  <span class="n">_dispatch_thread_setspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">,</span> <span class="n">dq</span><span class="p">);</span>
+  <span class="n">_dispatch_client_callout</span><span class="p">(</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="n">_dispatch_workitem_inc</span><span class="p">();</span>
+  <span class="n">_dispatch_thread_setspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">,</span> <span class="n">old_dq</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>当我们切换线程的时候，我们会先更改TSD，执行block，然后再将之前的dq设置回去。</p>
+
+<h3 id="dispatchasync">dispatch_async</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">dispatch_async</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="p">(</span><span class="o">^</span><span class="n">work</span><span class="p">)(</span><span class="kt">void</span><span class="p">))</span>
+<span class="p">{</span>
+  <span class="n">dispatch_async_f</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">_dispatch_Block_copy</span><span class="p">(</span><span class="n">work</span><span class="p">),</span>
+      <span class="n">_dispatch_call_block_and_release</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>这个就比较显而易见了，直接就把block转成function，然后掉xxx_f函数了。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kt">void</span>
+<span class="nf">dispatch_async_f</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span> <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">dispatch_continuation_t</span> <span class="n">dc</span><span class="p">;</span>
+
+  <span class="c1">// No fastpath/slowpath hint because we simply don't know
+</span>  <span class="k">if</span> <span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_width</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">dispatch_barrier_async_f</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">dc</span> <span class="o">=</span> <span class="n">fastpath</span><span class="p">(</span><span class="n">_dispatch_continuation_alloc_cacheonly</span><span class="p">());</span>
+  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">dc</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">_dispatch_async_f_slow</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">dc</span><span class="o">-&gt;</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="n">DISPATCH_OBJ_ASYNC_BIT</span><span class="p">;</span>
+  <span class="n">dc</span><span class="o">-&gt;</span><span class="n">dc_func</span> <span class="o">=</span> <span class="n">func</span><span class="p">;</span>
+  <span class="n">dc</span><span class="o">-&gt;</span><span class="n">dc_ctxt</span> <span class="o">=</span> <span class="n">ctxt</span><span class="p">;</span>
+
+  <span class="c1">// No fastpath/slowpath hint because we simply don't know
+</span>  <span class="k">if</span> <span class="p">(</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">_dispatch_async_f2</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dc</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="n">_dispatch_queue_push</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dc</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>看过前面几个例子之后就比较清晰了，如果dq是串行队列的话，就走<code class="highlighter-rouge">dispatch_barrier_async_f</code>，否则的话就需要创建一个<code class="highlighter-rouge">dispatch_continuation</code>对象来存放function，然后塞到队列后面。其实这两个路径都是干了一件事情，就是创建dc对象，然后塞到队列后面，唯一的区别是</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// barrier
+</span><span class="n">dc</span><span class="o">-&gt;</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)(</span><span class="n">DISPATCH_OBJ_ASYNC_BIT</span> <span class="o">|</span> <span class="n">DISPATCH_OBJ_BARRIER_BIT</span><span class="p">);</span>
+
+<span class="c1">// not barrier
+</span><span class="n">dc</span><span class="o">-&gt;</span><span class="n">do_vtable</span> <span class="o">=</span> <span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="p">)</span><span class="n">DISPATCH_OBJ_ASYNC_BIT</span><span class="p">;</span>
+</code></pre>
+</div>
+<p>其实到这里我们可以知道，gcd队列的阻塞等待就是通过<code class="highlighter-rouge">DISPATCH_OBJ_BARRIER_BIT</code>这个bit标识来实现的，全部的标识有如下几种:</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">#define DISPATCH_OBJ_ASYNC_BIT    0x1       // 异步
+#define DISPATCH_OBJ_BARRIER_BIT  0x2       // 阻塞
+#define DISPATCH_OBJ_GROUP_BIT    0x4       // 组
+#define DISPATCH_OBJ_SYNC_SLOW_BIT  0x8     // 同步慢
+</span></code></pre>
+</div>
+<p>理解这个对于阅读源码作用还是比较大的。</p>
+
+<p>接下去是比较重要的部分，也是隐藏的比较深的部分，我们现在的确把dc给放进队列里面了，那什么时候改dc才会被执行呢？正常的实现应该是上一个任务完成之后主动触发下一个任务。我们看下几个函数</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 同步任务执行
+</span><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">_dispatch_sync_f_invoke</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">ctxt</span><span class="p">,</span>
+    <span class="n">dispatch_function_t</span> <span class="n">func</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">_dispatch_function_invoke</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">ctxt</span><span class="p">,</span> <span class="n">func</span><span class="p">);</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">dispatch_atomic_sub2o</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dq_running</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">))</span> <span class="p">{</span>
+    <span class="n">_dispatch_wakeup</span><span class="p">(</span><span class="n">dq</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 异步任务执行
+</span><span class="k">static</span> <span class="kt">void</span>
+<span class="nf">_dispatch_async_f_redirect_invoke</span><span class="p">(</span><span class="kt">void</span> <span class="o">*</span><span class="n">_ctxt</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">dispatch_continuation_s</span> <span class="o">*</span><span class="n">dc</span> <span class="o">=</span> <span class="n">_ctxt</span><span class="p">;</span>
+  <span class="k">struct</span> <span class="n">dispatch_continuation_s</span> <span class="o">*</span><span class="n">other_dc</span> <span class="o">=</span> <span class="n">dc</span><span class="o">-&gt;</span><span class="n">dc_other</span><span class="p">;</span>
+  <span class="n">dispatch_queue_t</span> <span class="n">old_dq</span><span class="p">,</span> <span class="n">dq</span> <span class="o">=</span> <span class="n">dc</span><span class="o">-&gt;</span><span class="n">dc_data</span><span class="p">,</span> <span class="n">rq</span><span class="p">;</span>
+
+  <span class="n">old_dq</span> <span class="o">=</span> <span class="n">_dispatch_thread_getspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">);</span>
+  <span class="n">_dispatch_thread_setspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">,</span> <span class="n">dq</span><span class="p">);</span>
+  <span class="n">_dispatch_continuation_pop</span><span class="p">(</span><span class="n">other_dc</span><span class="p">);</span>
+  <span class="n">_dispatch_thread_setspecific</span><span class="p">(</span><span class="n">dispatch_queue_key</span><span class="p">,</span> <span class="n">old_dq</span><span class="p">);</span>
+
+  <span class="n">rq</span> <span class="o">=</span> <span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">;</span>
+  <span class="k">while</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">rq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">rq</span> <span class="o">!=</span> <span class="n">old_dq</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">dispatch_atomic_sub2o</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">dq_running</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+      <span class="n">_dispatch_wakeup</span><span class="p">(</span><span class="n">rq</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="n">rq</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">if</span> <span class="p">(</span><span class="n">dispatch_atomic_sub2o</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">dq_running</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">_dispatch_wakeup</span><span class="p">(</span><span class="n">dq</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="n">_dispatch_release</span><span class="p">(</span><span class="n">dq</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>可以发现无论是同步的任务执行，还是异步的任务执行，其最终都会调用<code class="highlighter-rouge">_dispatch_wakeup</code>，该函数的作用就是触发下一个任务。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">dispatch_queue_t</span>
+<span class="nf">_dispatch_wakeup</span><span class="p">(</span><span class="n">dispatch_object_t</span> <span class="n">dou</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">dispatch_queue_t</span> <span class="n">tq</span><span class="p">;</span>
+
+  <span class="k">if</span> <span class="p">(</span><span class="n">slowpath</span><span class="p">(</span><span class="n">DISPATCH_OBJECT_SUSPENDED</span><span class="p">(</span><span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="p">)))</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">dx_probe</span><span class="p">(</span><span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">dou</span><span class="p">.</span><span class="n">_dq</span><span class="o">-&gt;</span><span class="n">dq_items_tail</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="c1">// _dispatch_source_invoke() relies on this testing the whole suspend count
+</span>  <span class="c1">// word, not just the lock bit. In other words, no point taking the lock
+</span>  <span class="c1">// if the source is suspended or canceled.
+</span>  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">dispatch_atomic_cmpxchg2o</span><span class="p">(</span><span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="p">,</span> <span class="n">do_suspend_cnt</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+      <span class="n">DISPATCH_OBJECT_SUSPEND_LOCK</span><span class="p">))</span> <span class="p">{</span>
+<span class="cp">#if DISPATCH_COCOA_COMPAT || DISPATCH_LINUX_COMPAT
+</span>    <span class="k">if</span> <span class="p">(</span><span class="n">dou</span><span class="p">.</span><span class="n">_dq</span> <span class="o">==</span> <span class="o">&amp;</span><span class="n">_dispatch_main_q</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="n">_dispatch_queue_wakeup_main</span><span class="p">();</span>
+    <span class="p">}</span>
+<span class="cp">#endif
+</span>    <span class="k">return</span> <span class="nb">NULL</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="n">dispatch_atomic_acquire_barrier</span><span class="p">();</span>
+  <span class="n">_dispatch_retain</span><span class="p">(</span><span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="p">);</span>
+  <span class="n">tq</span> <span class="o">=</span> <span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="o">-&gt;</span><span class="n">do_targetq</span><span class="p">;</span>
+  <span class="n">_dispatch_queue_push</span><span class="p">(</span><span class="n">tq</span><span class="p">,</span> <span class="n">dou</span><span class="p">.</span><span class="n">_do</span><span class="p">);</span>
+  <span class="k">return</span> <span class="n">tq</span><span class="p">;</span>  <span class="c1">// libdispatch does not need this, but the Instrument DTrace
+</span>        <span class="c1">// probe does
+</span><span class="p">}</span>
+</code></pre>
+</div>
+<p>一开始看半天没看出来咋整的，有个非常不起眼的宏<code class="highlighter-rouge">dx_probe</code>，他的定义是<code class="highlighter-rouge">(x)-&gt;do_vtable-&gt;do_probe(x)</code>，搜了一下<code class="highlighter-rouge">do_probe</code>，可以发现，在init.c中有相关的定义，我们讨论到现在的基本都是root_queue，所以只看root_queue。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="n">DISPATCH_VTABLE_SUBCLASS_INSTANCE</span><span class="p">(</span><span class="n">queue_root</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_type</span> <span class="o">=</span> <span class="n">DISPATCH_QUEUE_GLOBAL_TYPE</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_kind</span> <span class="o">=</span> <span class="s">"global-queue"</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_debug</span> <span class="o">=</span> <span class="n">dispatch_queue_debug</span><span class="p">,</span>
+  <span class="p">.</span><span class="n">do_probe</span> <span class="o">=</span> <span class="n">_dispatch_queue_probe_root</span><span class="p">,</span>
+<span class="p">);</span>
+
+<span class="n">bool</span>
+<span class="nf">_dispatch_queue_probe_root</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="n">_dispatch_queue_wakeup_global2</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+  <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span>
+<span class="nf">_dispatch_queue_wakeup_global2</span><span class="p">(</span><span class="n">dispatch_queue_t</span> <span class="n">dq</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">n</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="k">struct</span> <span class="n">dispatch_root_queue_context_s</span> <span class="o">*</span><span class="n">qc</span> <span class="o">=</span> <span class="n">dq</span><span class="o">-&gt;</span><span class="n">do_ctxt</span><span class="p">;</span>
+
+  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">dq</span><span class="o">-&gt;</span><span class="n">dq_items_tail</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="cp">#if HAVE_PTHREAD_WORKQUEUES
+</span>  <span class="k">if</span> <span class="p">(</span>
+<span class="cp">#if DISPATCH_USE_PTHREAD_POOL
+</span>      <span class="p">(</span><span class="n">qc</span><span class="o">-&gt;</span><span class="n">dgq_kworkqueue</span> <span class="o">!=</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="o">~</span><span class="mi">0ul</span><span class="p">))</span> <span class="o">&amp;&amp;</span>
+<span class="cp">#endif
+</span>      <span class="o">!</span><span class="n">dispatch_atomic_cmpxchg2o</span><span class="p">(</span><span class="n">qc</span><span class="p">,</span> <span class="n">dgq_pending</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span> <span class="p">{</span>
+    <span class="n">_dispatch_debug</span><span class="p">(</span><span class="s">"work thread request still pending on global queue: "</span>
+        <span class="s">"%p"</span><span class="p">,</span> <span class="n">dq</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="cp">#endif // HAVE_PTHREAD_WORKQUEUES
+</span>  <span class="k">return</span>  <span class="n">_dispatch_queue_wakeup_global_slow</span><span class="p">(</span><span class="n">dq</span><span class="p">,</span> <span class="n">n</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p><code class="highlighter-rouge">_dispatch_queue_wakeup_global_slow</code>的代码这里就不贴了，在这个函数中会发送生产者消息让下一个任务执行，同时也会在必要的时候创建线程。这里是比较隐晦的，但原理和我们猜的也差不多。</p>
+
+<h1 id="section-3">结论</h1>
+<p>看这个代码断断续续也看了几天，终于看出了一点端倪。感谢网友博客提供的关键信息说明，少走了很多弯路。特此记录，以备后用。</p>
+
+<h1 id="section-4">参数文献</h1>
+<ul>
+  <li><a href="https://bestswifter.com/deep-gcd/">深入理解GCD</a></li>
+  <li><a href="http://www.jianshu.com/p/a639e2159aa1">GCD源码的分析</a></li>
+  <li><a href="http://libdispatch.macosforge.org/trac/wiki/tutorial">libdispatch</a></li>
+  <li><a href="http://blog.krzyzanowskim.com/2016/06/03/queues-are-not-bound-to-any-specific-thread/">Queues are not bound to any specific thread</a></li>
+</ul>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-09-16 00:00:00 +0800" data-title="GCD源码分析" data-url="/gcd/2016/09/16/GCD%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

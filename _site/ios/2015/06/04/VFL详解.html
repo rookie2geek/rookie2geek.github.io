@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>VFL详解</title>
+  <meta name="description" content="自己关于布局的一点点思考。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/ios/2015/06/04/VFL%E8%AF%A6%E8%A7%A3.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">VFL详解</h1>
+    <p class="post-meta">Jun 4, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>自己关于布局的一点点思考。</p>
+
+<h1 id="section">布局</h1>
+
+<p>客户端开发都会遇到布局的问题，无论是web、iOS还是Android，只要涉及到用户界面的，都会和布局打交道。web、iOS和Android现在都有一套自己的布局方式，那他们之间有什么共同之处，布局是不是应该具有某种意义上的共通呢？</p>
+
+<h2 id="web">web</h2>
+
+<p>web端布局主要依赖CSS，下面就简单看看web是如何布局的。
+<a href="http://www.w3schools.com/css/css_positioning.asp">CSS Positioning</a>
+<a href="http://zh-tw.learnlayout.com/">學習 CSS 版面配置</a></p>
+
+<ul>
+  <li>正常布局</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-css" data-lang="css"><span class="nt">p</span><span class="nc">.static</span> <span class="p">{</span>
+	<span class="nl">position</span><span class="p">:</span> <span class="nb">static</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<p>照着浏览器预设的配置，自动排版在页面上</p>
+
+<ul>
+  <li>固定布局</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-css" data-lang="css"><span class="nt">p</span><span class="nc">.pos_fixed</span> <span class="p">{</span>
+	<span class="nl">position</span><span class="p">:</span> <span class="nb">fixed</span><span class="p">;</span>
+	<span class="nl">top</span><span class="p">:</span> <span class="m">30px</span><span class="p">;</span>
+	<span class="nl">right</span><span class="p">:</span> <span class="m">5px</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<p>相对于浏览器视窗来定位</p>
+
+<ul>
+  <li>相对布局</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-css" data-lang="css"><span class="nt">p</span><span class="nc">.pos_relative</span> <span class="p">{</span>
+	<span class="nl">position</span><span class="p">:</span> <span class="nb">relative</span><span class="p">;</span>
+	<span class="nl">left</span><span class="p">:</span> <span class="m">-20px</span>
+<span class="p">}</span></code></pre></figure>
+
+<p>和static表现一样，但可以添加额外的属性，top、right、bottom、left来相对的调整其本该出现的位置，但不会影响其他元素的位置。</p>
+
+<ul>
+  <li>绝对布局</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-css" data-lang="css"><span class="nt">p</span><span class="nc">.pos_absolute</span> <span class="p">{</span>
+	<span class="nl">position</span><span class="p">:</span> <span class="nb">absolute</span><span class="p">;</span>
+	<span class="nl">left</span><span class="p">:</span> <span class="m">100px</span><span class="p">;</span>
+	<span class="nl">top</span><span class="p">:</span> <span class="m">150px</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<p>该元素的位置相对于其第一个父元素的位置，如果没有的话，就是&lt;html&gt;</p>
+
+<h2 id="android">Android</h2>
+<p>android的通用布局主要是以下三种。<a href="http://developer.android.com/guide/topics/ui/declaring-layout.html#CommonLayouts">Common Layouts</a></p>
+
+<ul>
+  <li>
+    <p>线性布局
+以单一横向或者纵向组织子元素的方式。</p>
+  </li>
+  <li>
+    <p>相对布局
+允许自定义子元素之间位置的方式，例如：子元素A在子元素B的左边，子元素A和父元素顶部对齐等</p>
+  </li>
+  <li>
+    <p>Web View
+展示web页面</p>
+  </li>
+</ul>
+
+<h2 id="ios">iOS</h2>
+<p>iOS的出身比较奇怪，因为其早期机型确定，不存在很多适配的问题，随着iPhone 6以及iPhone 6 Plus的出现，适配也变成了一个项目的必要考量。iOS 6以后，适配主要依赖Auto Layout。Auto Layout类似于相对布局，设置元素之间的关系，后面的章节会对Auto Layout有比较详细的介绍。下面就将各个平台相对布局的属性进行简单的比较。</p>
+
+<h2 id="flexbox">FlexBox</h2>
+<p>为什么这里要放FlexBox，因为大家都说好，其旨在更有效的进行布局。<a href="https://css-tricks.com/snippets/css/a-guide-to-flexbox/">A Complete Guide to Flexbox</a>
+According to Chris Coyier:
+“The main idea behind the flex layout is to give the container the ability to alter its items’ width/height (and order) to best fill the available space…”</p>
+
+<h2 id="section-1">对比</h2>
+<p>通过比较Web、Android以及iOS的布局可以发现，其实最主要的布局就只有一种方式：相对布局。其他的布局方式或者基于相对布局，或者不具备通用性。而且相对布局非常符合人类常规思维。一般人类在描述布局的时候都会使用相对布局的方法，比如，该物品左边30cm等。
+下面我们进行简单的对比。</p>
+
+<h1 id="auto-layout">Auto Layout</h1>
+<p><a href="https://developer.apple.com/library/ios/documentation/UserExperience/Conceptual/AutolayoutPG/AutoLayoutConcepts/AutoLayoutConcepts.html#//apple_ref/doc/uid/TP40010853-CH14-SW1">Auto Layout Guide</a></p>
+
+<p>Auto Layout的基本构造块是constraint（约束）。可以将约束认为是人类表达布局的数学表达。举个例子：该按钮的左边缘在其容器左边缘20points &lt;=&gt; button.left = container.left + 20.</p>
+
+<p>属性可以有：left、right、top、bottom、leading、trailing、width、height、centerX、centerY以及baseline</p>
+
+<p>约束有其他属性：Constant value、Relation、Priority level</p>
+
+<p>Intrinsic Content Size</p>
+
+<p>Auto Layout负责控制器、视图之间的布局。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2015-06-04 20:53:58 +0800" data-title="VFL详解" data-url="/ios/2015/06/04/VFL%E8%AF%A6%E8%A7%A3.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

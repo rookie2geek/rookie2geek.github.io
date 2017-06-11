@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>babylon parser实践</title>
+  <meta name="description" content="最近项目需要将一种语法转换到另外一种语法，代码不是我写的，但本着学习的心态阅读了部分代码，主要学习了两个库的使用，一个是htmlparser2，一个就是babylon。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/js/babel/2016/11/07/babylon-parser%E5%AE%9E%E8%B7%B5.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">babylon parser实践</h1>
+    <p class="post-meta">Nov 7, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>最近项目需要将一种语法转换到另外一种语法，代码不是我写的，但本着学习的心态阅读了部分代码，主要学习了两个库的使用，一个是<a href="https://github.com/fb55/htmlparser2">htmlparser2</a>，一个就是<a href="https://github.com/babel/babylon">babylon</a>。</p>
+
+<p>htmlparser2就不多说了，也比较简单，就是类似xml解析器，在解析的过程中会有一堆回调，然后在回调里面处理解析过来的节点就可以了。本文着重描述下babylon，之前都很少接触类似的解析器，正好趁此机会涨涨眼界。</p>
+
+<h1 id="babylon">什么是babylon</h1>
+<p>这个问题是必须要首先回答的。<strong>Babylon是Babel中用的JavaScript解析器</strong>。正好之前瞄了几眼编译原理，其实babylon干的活主要就是词法分析器和语法分析器，也就是编译器的前端。</p>
+
+<p>好了，其实对babylon的解释就只能到这里了，再深入我也无能为力了，大家还是回家看看挤满灰尘的“龙书”吧。</p>
+
+<h1 id="ast">什么是AST</h1>
+<p>如果你懂得什么是AST，那么你用babylon的时候就不会有什么障碍了。我就是属于不懂的，本文就是记录下到底babylon的AST有多少种节点，后面才能根据不同的节点做不同的事情啊。</p>
+
+<p>AST的全称是Abstract Syntax Tree，中文名抽象语法树。我们应该都知道，不论我们用什么语言写代码，最终都会被编译器先搞成AST，以便检查我们的语法或者做些优化什么的。AST就是我们写的代码的树形结构，方便计算机处理的。借用下wikipedia上的图展示下AST长啥样，
+<img src="https://en.wikipedia.org/wiki/File:Abstract_syntax_tree_for_Euclidean_algorithm.svg" alt="AST" />。</p>
+
+<p>AST能被计算机理解，所以也是比较容易让我们理解的，但把代码转换成AST是一件比较麻烦的事情，babylon就主要是帮我们做了这个转换工作，方便我们直接操作AST来达到修改源码的目的。</p>
+
+<p>这里必须要推荐一个利器，<a href="https://astexplorer.net/">AST Explorer</a>。通过该工具，我们能非常方便的知道我们的代码会被转换成啥样的AST，然后我们就能有目的的去修改AST。
+当然对于初学者的我，还有需要匹配一个网站才能把这个东西整明白<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference">JavaScript Reference</a>。</p>
+
+<p>举个例子</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="p">{</span><span class="nx">item</span><span class="p">.</span><span class="nx">a</span><span class="p">}</span>
+</code></pre>
+</div>
+
+<p>经过转换之后变成（当然，我处理过了，原来可比这长多了）</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"File"</span><span class="p">,</span><span class="w">
+  </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+  </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+  </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="err">,</span><span class="w">
+  </span><span class="s2">"program"</span><span class="err">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Program"</span><span class="p">,</span><span class="w">
+    </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+    </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+    </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">}</span><span class="err">,</span><span class="w">
+    </span><span class="s2">"sourceType"</span><span class="err">:</span><span class="w"> </span><span class="s2">"module"</span><span class="err">,</span><span class="w">
+    </span><span class="s2">"body"</span><span class="err">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+      </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"BlockStatement"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="s2">"body"</span><span class="err">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+          </span><span class="p">{</span><span class="w">
+            </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ExpressionStatement"</span><span class="p">,</span><span class="w">
+            </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+            </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w">
+            </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+            </span><span class="p">},</span><span class="w">
+            </span><span class="s2">"expression"</span><span class="err">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+              </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MemberExpression"</span><span class="p">,</span><span class="w">
+              </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+              </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w">
+              </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+              </span><span class="p">},</span><span class="w">
+              </span><span class="s2">"object"</span><span class="err">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Identifier"</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+                </span><span class="p">},</span><span class="w">
+                </span><span class="s2">"name"</span><span class="err">:</span><span class="w"> </span><span class="s2">"item"</span><span class="w">
+              </span><span class="err">}</span><span class="p">,</span><span class="w">
+              </span><span class="s2">"property"</span><span class="err">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+                </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Identifier"</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w">
+                </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+                </span><span class="p">},</span><span class="w">
+                </span><span class="s2">"name"</span><span class="err">:</span><span class="w"> </span><span class="s2">"a"</span><span class="w">
+              </span><span class="err">}</span><span class="p">,</span><span class="w">
+              </span><span class="s2">"computed"</span><span class="err">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
+            </span><span class="err">}</span><span class="w">
+          </span><span class="err">}</span><span class="w">
+        </span><span class="p">]</span><span class="w">
+      </span><span class="err">}</span><span class="w">
+    </span><span class="p">]</span><span class="w">
+  </span><span class="err">},</span><span class="w">
+  </span><span class="s2">"comments"</span><span class="err">:</span><span class="w"> </span><span class="p">[]</span><span class="err">,</span><span class="w">
+  </span><span class="s2">"tokens"</span><span class="err">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"name"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"updateContext"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"item"</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"."</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"updateContext"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"name"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"updateContext"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a"</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"}"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">7</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+    </span><span class="p">},</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"eof"</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"beforeExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"startsExpr"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"rightAssociative"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isLoop"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"isAssign"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"prefix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"postfix"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"binop"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">
+        </span><span class="nt">"updateContext"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="w">
+      </span><span class="p">},</span><span class="w">
+      </span><span class="nt">"start"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"end"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w">
+      </span><span class="nt">"loc"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">Object</span><span class="p">]</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="err">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="err">}</span><span class="w">
+</span></code></pre>
+</div>
+
+<p>是不是感觉很夸张，就一行代码，结果整出了一篇论文的长度，这就是编程语言的魅力，以极致的简单和逻辑来简化编程的工作。</p>
+
+<p>上面的结果里面有两个比较重要的部分，一个是<code class="highlighter-rouge">program</code>，一个是<code class="highlighter-rouge">tokens</code>，<code class="highlighter-rouge">tokens</code>就是词法分析后得出的词法单元集合，<code class="highlighter-rouge">program</code>就是AST，可以发现AST的每个结构都有type、start、end、loc等字段，后三者都比较好理解，及时该节点在源码中的位置嘛。type相对而言就比较复杂了，我的理解是，type的定义，决定了一门语言。也就是说JavaScript所有的语法应该都在type中有定义。</p>
+
+<p>babylon解析之后的AST的节点类型是基于<a href="https://github.com/estree/estree">ESTree</a>的，做了少许修改，完整的列表看这里<a href="https://github.com/babel/babylon/blob/master/ast/spec.md#objectproperty">Babylon AST node types</a>。</p>
+
+<h1 id="babylon-ast-node-type">Babylon AST Node Type</h1>
+<p>下面我们就主要看看不同的Node类型到底都长啥样，下面的例子忽略了所有的位置信息。</p>
+
+<h2 id="identifier">Identifier</h2>
+<p>标识符节点，一个简单的a变量，就是一个标识符。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Identifier"</span><span class="p">,</span>
+  <span class="s2">"name"</span><span class="err">:</span> <span class="s2">"a"</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h2 id="literals">Literals</h2>
+
+<h3 id="regexpliteral">RegexpLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// /\w+/g</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExpressionStatement"</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"RegExpLiteral"</span><span class="p">,</span>
+    <span class="s2">"extra"</span><span class="err">:</span> <span class="p">{</span>
+      <span class="s2">"raw"</span><span class="err">:</span> <span class="s2">"/\\w+/g"</span>
+    <span class="p">},</span>
+    <span class="s2">"pattern"</span><span class="err">:</span> <span class="s2">"\\w+"</span><span class="p">,</span>
+    <span class="s2">"flags"</span><span class="err">:</span> <span class="s2">"g"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="nullliteral">NullLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// null</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExpressionStatement"</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"NullLiteral"</span><span class="p">,</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="stringliteral">StringLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a = "a"</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"StringLiteral"</span><span class="p">,</span>
+  <span class="s2">"extra"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"rawValue"</span><span class="err">:</span> <span class="s2">"a"</span><span class="p">,</span>
+    <span class="s2">"raw"</span><span class="err">:</span> <span class="s2">"\"a\""</span>
+  <span class="p">},</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="s2">"a"</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="booleanliteral">BooleanLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// true</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExpressionStatement"</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"BooleanLiteral"</span><span class="p">,</span>
+    <span class="s2">"value"</span><span class="err">:</span> <span class="kc">true</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="numericliteral">NumericLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 1</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExpressionStatement"</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"NumericLiteral"</span><span class="p">,</span>
+    <span class="s2">"extra"</span><span class="err">:</span> <span class="p">{</span>
+      <span class="s2">"rawValue"</span><span class="err">:</span> <span class="mi">1</span><span class="p">,</span>
+      <span class="s2">"raw"</span><span class="err">:</span> <span class="s2">"1"</span>
+    <span class="p">},</span>
+    <span class="s2">"value"</span><span class="err">:</span> <span class="mi">1</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h2 id="programs">Programs</h2>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Program"</span><span class="p">,</span>
+  <span class="s2">"sourceType"</span><span class="err">:</span> <span class="s2">"module"</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">[]</span>
+  <span class="s2">"directives"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h2 id="functions">Functions</h2>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function a() {</span>
+<span class="c1">//   return a;</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"FunctionDeclaration"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Identifier"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="err">:</span> <span class="s2">"a"</span>
+  <span class="p">},</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h2 id="statements">Statements</h2>
+
+<h3 id="expressionstatement">ExpressionStatement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExpressionStatement"</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="blockstatement">BlockStatement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// { }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"BlockStatement"</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"directives"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h3 id="emptystatement">EmptyStatement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"EmptyStatement"</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="debuggerstatement">DebuggerStatement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// debugger;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"DebuggerStatement"</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="withstatement">WithStatement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// with (o) {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"WithStatement"</span><span class="p">,</span>
+  <span class="s2">"object"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="control-flow">Control flow</h3>
+
+<h4 id="returnstatement">ReturnStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function a() {return a}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ReturnStatement"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="labeledstatement">LabeledStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// loop1:</span>
+<span class="c1">//   a = 1;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"LabeledStatement"</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"label"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Identifier"</span><span class="p">,</span>
+    <span class="s2">"name"</span><span class="err">:</span> <span class="s2">"loop1"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="breakstatement">BreakStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// while(1){</span>
+<span class="c1">//   break;</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"BreakStatement"</span><span class="p">,</span>
+  <span class="s2">"label"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="continuestatement">ContinueStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// while(1){</span>
+<span class="c1">//   continue;</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ContinueStatement"</span><span class="p">,</span>
+  <span class="s2">"label"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="choice">Choice</h3>
+
+<h4 id="ifstatement">IfStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// if(1){}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"IfStatement"</span><span class="p">,</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"consequent"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"alternate"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="switchstatement">SwitchStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// switch(1) {</span>
+<span class="c1">//  case 1: break;</span>
+<span class="c1">// }</span>
+
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"SwitchStatement"</span><span class="p">,</span>
+  <span class="s2">"discriminant"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"cases"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="switchcase">SwitchCase</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// switch(1) {</span>
+<span class="c1">//  case 1: break;</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"SwitchCase"</span><span class="p">,</span>
+  <span class="s2">"consequent"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="exceptions">Exceptions</h3>
+
+<h4 id="throwstatement">ThrowStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// throw "myException";</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ThrowStatement"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="trystatement">TryStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// try {} catch (e) {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"TryStatement"</span><span class="p">,</span>
+  <span class="s2">"block"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"handler"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"guardedHandlers"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"finalizer"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="catchclause">CatchClause</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// try {} catch (e) {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"CatchClause"</span><span class="p">,</span>
+  <span class="s2">"param"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">},</span>
+</code></pre>
+</div>
+
+<h3 id="loops">Loops</h3>
+
+<h4 id="whilestatement">WhileStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// while(1) {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"WhileStatement"</span><span class="p">,</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="dowhilestatement">DoWhileStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// do{} while(1)</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"DoWhileStatement"</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="forstatement">ForStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ForStatement"</span><span class="p">,</span>
+  <span class="s2">"init"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"update"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="forinstatement">ForInStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var obj = {a:1, b:2, c:3};</span>
+<span class="c1">// for (var prop in obj) {</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ForInStatement"</span><span class="p">,</span>
+  <span class="s2">"left"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"right"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="forofstatement">ForOfStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var obj = {a:1, b:2, c:3};</span>
+<span class="c1">// for (var prop of obj) {</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ForOfStatement"</span><span class="p">,</span>
+  <span class="s2">"left"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"right"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h4 id="forawaitstatement">ForAwaitStatement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h2 id="declarations">Declarations</h2>
+
+<h3 id="functiondeclaration">FunctionDeclaration</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function a() {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"FunctionDeclaration"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="variabledeclaration">VariableDeclaration</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"VariableDeclaration"</span><span class="p">,</span>
+  <span class="s2">"declarations"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"kind"</span><span class="err">:</span> <span class="s2">"var"</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="variabledeclarator">VariableDeclarator</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"VariableDeclarator"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"init"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h2 id="misc">Misc</h2>
+
+<h3 id="decorator">Decorator</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>
+</code></pre>
+</div>
+
+<h3 id="directive">Directive</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Directive"</span><span class="p">,</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h3 id="directiveliteral">DirectiveLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a</span>
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"DirectiveLiteral"</span><span class="p">,</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="s2">"a"</span><span class="p">,</span>
+  <span class="s2">"extra"</span><span class="err">:</span> <span class="p">{</span>
+    <span class="s2">"raw"</span><span class="err">:</span> <span class="s2">"\"a\""</span><span class="p">,</span>
+    <span class="s2">"rawValue"</span><span class="err">:</span> <span class="s2">"a"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h2 id="expressions">Expressions</h2>
+
+<h3 id="super">Super</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">//  class Base {</span>
+<span class="c1">//   constructor() {</span>
+<span class="c1">//   }</span>
+<span class="c1">// }</span>
+
+<span class="c1">// class Derivative extends Base {</span>
+<span class="c1">//   constructor() {</span>
+<span class="c1">//     super();</span>
+<span class="c1">//   }</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"Super"</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="import">Import</h3>
+
+<h3 id="thisexpression">ThisExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class Base {</span>
+<span class="c1">//   constructor() {</span>
+<span class="c1">//   }</span>
+<span class="c1">// }</span>
+
+<span class="c1">// class Derivative extends Base {</span>
+<span class="c1">//   constructor() {</span>
+<span class="c1">//     super();</span>
+<span class="c1">//   }</span>
+  
+<span class="c1">//   a() {</span>
+<span class="c1">//     this.a = 1;</span>
+<span class="c1">//   }</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ThisExpression"</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="arrowfunctionexpression">ArrowFunctionExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a =&gt; {return a;}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ArrowFunctionExpression"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="yieldexpression">YieldExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function* foo(){</span>
+<span class="c1">//   var index = 0;</span>
+<span class="c1">//   while (index &lt;= 2)</span>
+<span class="c1">//     yield index++;</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"YieldExpression"</span><span class="p">,</span>
+  <span class="s2">"delegate"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="awaitexpression">AwaitExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// async function f2() {</span>
+<span class="c1">//   var y = await 20;</span>
+<span class="c1">//   console.log(y); // 20</span>
+<span class="c1">// }</span>
+<span class="c1">// f2();</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"AwaitExpression"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="arrayexpression">ArrayExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = [];</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ArrayExpression"</span><span class="p">,</span>
+  <span class="s2">"elements"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="objectexpression">ObjectExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = {};</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ObjectExpression"</span><span class="p">,</span>
+  <span class="s2">"properties"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="objectmember">ObjectMember</h4>
+
+<h5 id="objectproperty">ObjectProperty</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = {a:"1", b:"2"};</span>
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ObjectProperty"</span><span class="p">,</span>
+  <span class="s2">"method"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"shorthand"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"computed"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"key"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="objectmethod">ObjectMethod</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = {</span>
+<span class="c1">//   a(){}</span>
+<span class="c1">// };</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ObjectMethod"</span><span class="p">,</span>
+  <span class="s2">"method"</span><span class="err">:</span> <span class="kc">true</span><span class="p">,</span>
+  <span class="s2">"shorthand"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"computed"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"key"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"kind"</span><span class="err">:</span> <span class="s2">"method"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="restproperty">RestProperty</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>
+</code></pre>
+</div>
+
+<h3 id="spreadproperty">SpreadProperty</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = {</span>
+<span class="c1">//   ...b</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"SpreadProperty"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="functionexpression">FunctionExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a = function() {};</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"FunctionExpression"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="unary-operations">Unary operations</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h4 id="unaryexpression">UnaryExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = ~1</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"UnaryExpression"</span><span class="p">,</span>
+  <span class="s2">"operator"</span><span class="err">:</span> <span class="s2">"~"</span><span class="p">,</span>
+  <span class="s2">"prefix"</span><span class="err">:</span> <span class="kc">true</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"extra"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="unaryoperator">UnaryOperator</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h4 id="updateexpression">UpdateExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a ++</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"UpdateExpression"</span><span class="p">,</span>
+  <span class="s2">"operator"</span><span class="err">:</span> <span class="s2">"++"</span><span class="p">,</span>
+  <span class="s2">"prefix"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="updateoperator">UpdateOperator</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="binary-operations">Binary operations</h3>
+
+<h4 id="binaryexpression">BinaryExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// var a = a + 1;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"BinaryExpression"</span><span class="p">,</span>
+  <span class="s2">"left"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"operator"</span><span class="err">:</span> <span class="s2">"+"</span><span class="p">,</span>
+  <span class="s2">"right"</span><span class="err">:</span> <span class="p">{}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="binaryoperator">BinaryOperator</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h4 id="assignmentexpression">AssignmentExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a = 1;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"AssignmentExpression"</span><span class="p">,</span>
+  <span class="s2">"operator"</span><span class="err">:</span> <span class="s2">"="</span><span class="p">,</span>
+  <span class="s2">"left"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"right"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="assignmentoperator">AssignmentOperator</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h4 id="logicalexpression">LogicalExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a || 1;</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"LogicalExpression"</span><span class="p">,</span>
+  <span class="s2">"left"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"operator"</span><span class="err">:</span> <span class="s2">"||"</span><span class="p">,</span>
+  <span class="s2">"right"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h5 id="logicaloperator">LogicalOperator</h5>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h4 id="spreadelement">SpreadElement</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function myFunction(x, y, z) { }</span>
+<span class="c1">// var args = [0, 1, 2];</span>
+<span class="c1">// myFunction(...args);</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"SpreadElement"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="memberexpression">MemberExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// a.b</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"MemberExpression"</span><span class="p">,</span>
+  <span class="s2">"object"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"property"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"computed"</span><span class="err">:</span> <span class="kc">false</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="bindexpression">BindExpression</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="conditionalexpression">ConditionalExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 1 ? 'a' : 'b';</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ConditionalExpression"</span><span class="p">,</span>
+  <span class="s2">"test"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"consequent"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"alternate"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="callexpression">CallExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// call()</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"CallExpression"</span><span class="p">,</span>
+  <span class="s2">"callee"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"arguments"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="newexpression">NewExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// new Obejct();</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"NewExpression"</span><span class="p">,</span>
+  <span class="s2">"callee"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"arguments"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="sequenceexpression">SequenceExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h2 id="template-literals">Template Literals</h2>
+
+<h3 id="templateliteral">TemplateLiteral</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// `a`</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"TemplateLiteral"</span><span class="p">,</span>
+  <span class="s2">"expressions"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"quasis"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="taggedtemplateexpression">TaggedTemplateExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// tag `a`</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"TaggedTemplateExpression"</span><span class="p">,</span>
+  <span class="s2">"tag"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"quasi"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="templateelement">TemplateElement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// `a`</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"TemplateElement"</span><span class="p">,</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"tail"</span><span class="err">:</span> <span class="kc">true</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h2 id="patterns">Patterns</h2>
+
+<h3 id="objectpattern">ObjectPattern</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="arraypattern">ArrayPattern</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="restelement">RestElement</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// function f(a, b, ...args) {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"RestElement"</span><span class="p">,</span>
+  <span class="s2">"argument"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="assignmentpattern">AssignmentPattern</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h2 id="classes">Classes</h2>
+<p>### ClassBody</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class a {}</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ClassBody"</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="classmethod">ClassMethod</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class a {</span>
+<span class="c1">//   b(){}</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ClassMethod"</span><span class="p">,</span>
+  <span class="s2">"computed"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"key"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"static"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"kind"</span><span class="err">:</span> <span class="s2">"method"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"generator"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"expression"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"async"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"params"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="classproperty">ClassProperty</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class a {</span>
+<span class="c1">//   b: "a"</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ClassProperty"</span><span class="p">,</span>
+  <span class="s2">"computed"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"key"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"variance"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"static"</span><span class="err">:</span> <span class="kc">false</span><span class="p">,</span>
+  <span class="s2">"typeAnnotation"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"value"</span><span class="err">:</span> <span class="kc">null</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="classdeclaration">ClassDeclaration</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class a {</span>
+<span class="c1">//   b: "a"</span>
+<span class="c1">// }</span>
+
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ClassDeclaration"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"superClass"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="classexpression">ClassExpression</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// class a {</span>
+<span class="c1">//   b: "a"</span>
+<span class="c1">// }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ClassExpression"</span><span class="p">,</span>
+  <span class="s2">"id"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"superClass"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"body"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="metaproperty">MetaProperty</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h2 id="modules">Modules</h2>
+
+<h3 id="moduledeclaration">ModuleDeclaration</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="modulespecifier">ModuleSpecifier</h3>
+
+<div class="highlighter-rouge"><pre class="highlight"><code></code></pre>
+</div>
+
+<h3 id="imports">Imports</h3>
+
+<h4 id="importdeclaration">ImportDeclaration</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// import { cube, foo } from 'my-module';</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ImportDeclaration"</span><span class="p">,</span>
+  <span class="s2">"specifiers"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"importKind"</span><span class="err">:</span> <span class="s2">"value"</span><span class="p">,</span>
+  <span class="s2">"source"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="importspecifier">ImportSpecifier</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// import { cube, foo } from 'my-module';</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ImportSpecifier"</span><span class="p">,</span>
+  <span class="s2">"imported"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"local"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h4 id="importdefaultspecifier">ImportDefaultSpecifier</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// import myDefault from "my-module";</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ImportDefaultSpecifier"</span><span class="p">,</span>
+  <span class="s2">"local"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h4 id="importnamespacespecifier">ImportNamespaceSpecifier</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// import * as myModule from "my-module";</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ImportNamespaceSpecifier"</span><span class="p">,</span>
+  <span class="s2">"local"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h3 id="exports">Exports</h3>
+
+<h4 id="exportnameddeclaration">ExportNamedDeclaration</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// export { myFunction }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExportNamedDeclaration"</span><span class="p">,</span>
+  <span class="s2">"declaration"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"specifiers"</span><span class="err">:</span> <span class="p">[],</span>
+  <span class="s2">"source"</span><span class="err">:</span> <span class="kc">null</span><span class="p">,</span>
+  <span class="s2">"exportKind"</span><span class="err">:</span> <span class="s2">"value"</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h4 id="exportspecifier">ExportSpecifier</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// export { myFunction }</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExportSpecifier"</span><span class="p">,</span>
+  <span class="s2">"local"</span><span class="err">:</span> <span class="p">{},</span>
+  <span class="s2">"exported"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h4 id="exportdefaultdeclaration">ExportDefaultDeclaration</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// export default { myFunction };</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExportDefaultDeclaration"</span><span class="p">,</span>
+  <span class="s2">"declaration"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h4 id="exportalldeclaration">ExportAllDeclaration</h4>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// export * from "my-module";</span>
+
+<span class="p">{</span>
+  <span class="s2">"type"</span><span class="err">:</span> <span class="s2">"ExportAllDeclaration"</span><span class="p">,</span>
+  <span class="s2">"source"</span><span class="err">:</span> <span class="p">{}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-11-07 00:00:00 +0800" data-title="babylon parser实践" data-url="/js/babel/2016/11/07/babylon-parser%E5%AE%9E%E8%B7%B5.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

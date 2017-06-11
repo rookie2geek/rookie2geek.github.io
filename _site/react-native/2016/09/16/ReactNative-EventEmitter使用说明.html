@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>EventEmitter使用说明</title>
+  <meta name="description" content="最近升级了react-native框架，从0.19.0升到了0.32.0，改动还是挺大的，包括react和react-native的分离，以及巨量的特性更新和性能优化。本文主要为了说明0.32.0版本发送事件使用说明。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/react-native/2016/09/16/ReactNative-EventEmitter%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">EventEmitter使用说明</h1>
+    <p class="post-meta">Sep 16, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>最近升级了react-native框架，从0.19.0升到了0.32.0，改动还是挺大的，包括react和react-native的分离，以及巨量的特性更新和性能优化。本文主要为了说明0.32.0版本发送事件使用说明。</p>
+
+<h1 id="old-fashion">old fashion</h1>
+<p>在0.19.0的时候，我们发送事件是通过<code class="highlighter-rouge">RCTEventDispatcher</code>来实现的，其有几个主要的接口供调用，他们分别是：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendAppEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span><span class="p">;</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendDeviceEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span><span class="p">;</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendInputEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nc">NSDictionary</span> <span class="nf">*</span><span class="p">)</span><span class="nf">body</span><span class="p">;</span>
+</code></pre>
+</div>
+
+<h1 id="new-style">new style</h1>
+<p>接口调用很简单，但是其带来的比较大的维护问题，因此为了规范事件使用，0.32.0将old fashion的接口都deprecated了。现在<code class="highlighter-rouge">RCTEventDispatcher</code>的源码如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">/**</span>
+ <span class="err">*</span> <span class="nc">Deprecated</span><span class="nf">,</span> <span class="nv">do</span> <span class="nf">not</span> <span class="nf">use</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendAppEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span>
+<span class="o">__</span><span class="nv">deprecated_msg</span><span class="p">(</span><span class="c">"Subclass RCTEventEmitter instead"</span><span class="p">);</span>
+
+<span class="nf">/**</span>
+ <span class="err">*</span> <span class="nc">Deprecated</span><span class="nf">,</span> <span class="nv">do</span> <span class="nf">not</span> <span class="nf">use</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendDeviceEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span>
+<span class="o">__</span><span class="nv">deprecated_msg</span><span class="p">(</span><span class="c">"Subclass RCTEventEmitter instead"</span><span class="p">);</span>
+
+<span class="nf">/**</span>
+ <span class="err">*</span> <span class="nc">Deprecated</span><span class="nf">,</span> <span class="nv">do</span> <span class="nf">not</span> <span class="nf">use</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendInputEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nc">NSDictionary</span> <span class="nf">*</span><span class="p">)</span><span class="nf">body</span>
+<span class="o">__</span><span class="nv">deprecated_msg</span><span class="p">(</span><span class="c">"Use RCTDirectEventBlock or RCTBubblingEventBlock instead"</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<p>那现在我们想要向js发送事件的时候应该怎么弄呢？按照提示说明。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="o">__</span><span class="nv">deprecated_msg</span><span class="p">(</span><span class="c">"Subclass RCTEventEmitter instead"</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<h1 id="rcteventemitter">RCTEventEmitter</h1>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">@</span><span class="nv">interface</span> <span class="nf">RCTEventEmitter</span> <span class="err">:</span> <span class="nc">NSObject</span> <span class="nf">&lt;</span><span class="nc">RCTBridgeModule</span><span class="nf">&gt;</span>
+
+<span class="err">@</span><span class="nv">property</span> <span class="p">(</span><span class="nv">nonatomic</span><span class="nf">,</span> <span class="nv">weak</span><span class="p">)</span> <span class="nf">RCTBridge</span> <span class="nf">*</span><span class="nv">bridge</span><span class="p">;</span>
+
+<span class="nf">/**</span>
+ <span class="err">*</span> <span class="nc">Override</span> <span class="nf">this</span> <span class="nf">method</span> <span class="nf">to</span> <span class="nf">return</span> <span class="nf">an</span> <span class="nf">array</span> <span class="nf">of</span> <span class="nf">supported</span> <span class="nf">event</span> <span class="nf">names</span><span class="p">.</span> <span class="nc">Attempting</span>
+ <span class="nf">*</span> <span class="nv">to</span> <span class="nf">observe</span> <span class="nf">or</span> <span class="nf">send</span> <span class="nf">an</span> <span class="nf">event</span> <span class="nf">that</span> <span class="nf">isn</span><span class="err">'</span><span class="nv">t</span> <span class="nf">included</span> <span class="nf">in</span> <span class="nf">this</span> <span class="nf">list</span> <span class="nf">will</span> <span class="nf">result</span> <span class="nf">in</span>
+ <span class="nf">*</span> <span class="nv">an</span> <span class="nf">error</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nc">NSArray</span><span class="nf">&lt;</span><span class="nc">NSString</span> <span class="nf">*&gt;</span> <span class="err">*</span><span class="p">)</span><span class="nf">supportedEvents</span><span class="p">;</span>
+
+<span class="nf">/**</span>
+ <span class="err">*</span> <span class="nc">Send</span> <span class="nf">an</span> <span class="nf">event</span> <span class="nf">that</span> <span class="nf">does</span> <span class="nf">not</span> <span class="nf">relate</span> <span class="nf">to</span> <span class="nf">a</span> <span class="nf">specific</span> <span class="nf">view,</span> <span class="nv">e</span><span class="p">.</span><span class="nv">g</span><span class="p">.</span> <span class="nv">a</span> <span class="nf">navigation</span>
+ <span class="nf">*</span> <span class="nv">or</span> <span class="nf">data</span> <span class="nf">update</span> <span class="nf">notification</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span><span class="p">;</span>
+
+<span class="nf">/**</span>
+ <span class="err">*</span> <span class="nc">These</span> <span class="nf">methods</span> <span class="nf">will</span> <span class="nf">be</span> <span class="nf">called</span> <span class="nf">when</span> <span class="nf">the</span> <span class="nf">first</span> <span class="nf">observer</span> <span class="nf">is</span> <span class="nf">added</span> <span class="nf">and</span> <span class="nf">when</span> <span class="nf">the</span>
+ <span class="nf">*</span> <span class="nv">last</span> <span class="nf">observer</span> <span class="nf">is</span> <span class="nf">removed</span> <span class="p">(</span><span class="nv">or</span> <span class="nf">when</span> <span class="nf">dealloc</span> <span class="nf">is</span> <span class="nf">called</span><span class="p">)</span><span class="nf">,</span> <span class="nv">respectively</span><span class="p">.</span> <span class="nc">These</span>
+ <span class="nf">*</span> <span class="nv">should</span> <span class="nf">be</span> <span class="nf">overridden</span> <span class="nf">in</span> <span class="nf">your</span> <span class="nf">subclass</span> <span class="nf">in</span> <span class="nf">order</span> <span class="nf">to</span> <span class="nf">start/</span><span class="nv">stop</span> <span class="nf">sending</span> <span class="nf">events</span><span class="p">.</span>
+ <span class="err">*/</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">startObserving</span><span class="p">;</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">stopObserving</span><span class="p">;</span>
+
+<span class="nf">@</span><span class="nv">end</span>
+</code></pre>
+</div>
+
+<p>四个接口：</p>
+
+<ul>
+  <li>supportedEvents: 说明支持哪些事件</li>
+  <li>sendEventWithName:body: 发送事件</li>
+  <li>startObserving: 在第一个观察者被添加的时候调用</li>
+  <li>stopObserving: 在最后一个观察者被移除的时候被调用</li>
+</ul>
+
+<p><strong>pay attention to startObserving和stopObserving！！！</strong></p>
+
+<p>我们先来看看<code class="highlighter-rouge">sendEventWithName:body:</code>函数</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">sendEventWithName:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">eventName</span> <span class="nf">body:</span><span class="p">(</span><span class="nv">id</span><span class="p">)</span><span class="nf">body</span>
+<span class="p">{</span>
+  <span class="nc">RCTAssert</span><span class="p">(</span><span class="o">_</span><span class="nv">bridge</span> <span class="nf">!=</span> <span class="bp">nil</span><span class="nf">,</span> <span class="err">@</span><span class="c">"bridge is not set. This is probably because you've "</span>
+            <span class="c">"explicitly synthesized the bridge in %@, even though it's inherited "</span>
+            <span class="c">"from RCTEventEmitter."</span><span class="err">,</span> <span class="p">[</span><span class="bp">self</span> <span class="nf">class</span><span class="p">]);</span>
+
+  <span class="nf">if</span> <span class="p">(</span><span class="nc">RCT_DEBUG</span> <span class="nf">&amp;&amp;</span> <span class="p">![[</span><span class="bp">self</span> <span class="nf">supportedEvents</span><span class="p">]</span> <span class="nf">containsObject:</span><span class="nv">eventName</span><span class="p">])</span> <span class="p">{</span>
+    <span class="nc">RCTLogError</span><span class="p">(</span><span class="err">@</span><span class="c">"`%@` is not a supported event type for %@. Supported events are: `%@`"</span><span class="err">,</span>
+                <span class="nv">eventName</span><span class="nf">,</span> <span class="p">[</span><span class="bp">self</span> <span class="nf">class</span><span class="p">]</span><span class="nf">,</span> <span class="p">[[</span><span class="bp">self</span> <span class="nf">supportedEvents</span><span class="p">]</span> <span class="nf">componentsJoinedByString:</span><span class="err">@</span><span class="c">"`, `"</span><span class="p">]);</span>
+  <span class="p">}</span>
+  <span class="nf">if</span> <span class="p">(</span><span class="o">_</span><span class="nv">listenerCount</span> <span class="nf">&gt;</span> <span class="m">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="p">[</span><span class="o">_</span><span class="nv">bridge</span> <span class="nf">enqueueJSCall:</span><span class="err">@</span><span class="c">"RCTDeviceEventEmitter"</span>
+                    <span class="err">method:@</span><span class="c">"emit"</span>
+                      <span class="nf">args:</span><span class="nv">body</span> <span class="err">?</span> <span class="err">@</span><span class="p">[</span><span class="nv">eventName</span><span class="nf">,</span> <span class="nv">body</span><span class="p">]</span> <span class="err">:</span> <span class="err">@</span><span class="p">[</span><span class="nv">eventName</span><span class="p">]</span>
+                <span class="nf">completion:</span><span class="nc">NULL</span><span class="p">];</span>
+  <span class="p">}</span> <span class="nf">else</span> <span class="p">{</span>
+    <span class="nc">RCTLogWarn</span><span class="p">(</span><span class="err">@</span><span class="c">"Sending `%@` with no listeners registered."</span><span class="err">,</span> <span class="nv">eventName</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+<p>我们可以发现，如果eventName不在supportedEvent里面的话，会报error，good，终于不用手动查单词有没有拼错了。</p>
+
+<p>另外如果没有监听者的话，也会报warning，这样预埋事件会比较蛋疼一些，如果不用而发了事件，会有warning。</p>
+
+<p><code class="highlighter-rouge">addListener</code>和<code class="highlighter-rouge">removeListeners</code>比较简单，无非是对_listenCount加加减减，但是，其会在特定的时候调用startObserving和stopObserving。</p>
+
+<h1 id="section">实际使用</h1>
+<p>剩下的我们结合实例来说明。</p>
+
+<p>首先，我们给出一个完整的例子</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nc">NSString</span> <span class="nf">*</span><span class="nv">const</span> <span class="nf">kAFWRNLifeCycleEventViewWillAppear</span> <span class="nf">=</span> <span class="err">@</span><span class="c">"willappear"</span><span class="err">;</span>
+<span class="nc">NSString</span> <span class="nf">*</span><span class="nv">const</span> <span class="nf">kAFWRNLifeCycleEventViewDidAppear</span> <span class="nf">=</span> <span class="err">@</span><span class="c">"didappear"</span><span class="err">;</span>
+
+<span class="err">@</span><span class="nv">implementation</span> <span class="nf">AFWRNVCLifeCycleEvent</span>
+
+<span class="nf">RCT_EXPORT_MODULE</span><span class="p">()</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nc">NSArray</span><span class="nf">&lt;</span><span class="nc">NSString</span> <span class="nf">*&gt;</span> <span class="err">*</span><span class="p">)</span><span class="nf">supportedEvents</span>
+<span class="p">{</span>
+    <span class="nv">return</span> <span class="nf">@</span><span class="p">[</span><span class="nv">kAFWRNLifeCycleEventViewWillAppear</span><span class="nf">,</span> <span class="nv">kAFWRNLifeCycleEventViewDidAppear</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">startObserving</span>
+<span class="p">{</span>
+    <span class="p">[[</span><span class="nc">NSNotificationCenter</span> <span class="nf">defaultCenter</span><span class="p">]</span> <span class="nf">addObserver:</span><span class="bp">self</span>
+                                             <span class="nf">selector:</span><span class="err">@</span><span class="nv">selector</span><span class="p">(</span><span class="err">tellJsViewWillAppear:</span><span class="p">)</span>
+                                                 <span class="nf">name:</span><span class="nv">kAFWRNVCLifeCycleViewWillAppearNotification</span>
+                                               <span class="nf">object:</span><span class="bp">nil</span><span class="p">];</span>
+    <span class="p">[[</span><span class="nc">NSNotificationCenter</span> <span class="nf">defaultCenter</span><span class="p">]</span> <span class="nf">addObserver:</span><span class="bp">self</span>
+                                             <span class="nf">selector:</span><span class="err">@</span><span class="nv">selector</span><span class="p">(</span><span class="err">tellJsViewDidAppear:</span><span class="p">)</span>
+                                                 <span class="nf">name:</span><span class="nv">kAFWRNVCLifeCycleViewDidAppearNotification</span>
+                                               <span class="nf">object:</span><span class="bp">nil</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">stopObserving</span>
+<span class="p">{</span>
+    <span class="p">[[</span><span class="nc">NSNotificationCenter</span> <span class="nf">defaultCenter</span><span class="p">]</span> <span class="nf">removeObserver:</span><span class="bp">self</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">tellJsViewWillAppear:</span><span class="p">(</span><span class="nc">NSNotification</span> <span class="nf">*</span><span class="p">)</span><span class="nf">noti</span>
+<span class="p">{</span>
+    <span class="p">[</span><span class="bp">self</span> <span class="nf">sendEventWithName:</span><span class="nv">kAFWRNLifeCycleEventViewWillAppear</span> <span class="nf">body:</span><span class="nv">noti</span><span class="p">.</span><span class="nv">userInfo</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">tellJsViewDidAppear:</span><span class="p">(</span><span class="nc">NSNotification</span> <span class="nf">*</span><span class="p">)</span><span class="nf">noti</span>
+<span class="p">{</span>
+    <span class="p">[</span><span class="bp">self</span> <span class="nf">sendEventWithName:</span><span class="nv">kAFWRNLifeCycleEventViewDidAppear</span> <span class="nf">body:</span><span class="nv">noti</span><span class="p">.</span><span class="nv">userInfo</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">@</span><span class="nv">end</span>
+</code></pre>
+</div>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>  <span class="nx">componentWillMount</span><span class="err">:</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">subscription</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">NativeEventEmitter</span><span class="p">(</span><span class="nx">NativeModules</span><span class="p">.</span><span class="nx">AFWRNVCLifeCycleEvent</span><span class="p">)</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">subscription</span><span class="p">.</span><span class="nx">addListener</span><span class="p">(</span>
+      <span class="s1">'didappear'</span><span class="p">,</span>
+      <span class="k">this</span><span class="p">.</span><span class="nx">_handleAppStateChange</span>
+    <span class="p">);</span>
+  <span class="p">},</span>
+
+
+  <span class="nx">componentWillUnmount</span><span class="err">:</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">subscription</span> <span class="o">&amp;&amp;</span> <span class="k">this</span><span class="p">.</span><span class="nx">subscription</span><span class="p">.</span><span class="nx">removeAllListeners</span><span class="p">(</span><span class="s1">'didappear'</span><span class="p">);</span>
+  <span class="p">}</span>
+</code></pre>
+</div>
+
+<p><code class="highlighter-rouge">RCT_EXPORT_MODULE()</code>大家都知道，是导出该模块给js，这样js就能通过<code class="highlighter-rouge">NativeModules.AFWRNVCLifeCycleEvent</code>来注册监听者了。这一点非常重要，记住，
+<strong><code class="highlighter-rouge">AFWRNVCLifeCycleEvent</code>的实例化是交给js来完成的</strong>，Native只管实现就可以了，不能自己去实例化<code class="highlighter-rouge">AFWRNVCLifeCycleEvent</code>，否则注册通知就没有意义了。</p>
+
+<p>一般来说，<code class="highlighter-rouge">startObserving</code>会监听通知，而<code class="highlighter-rouge">stopObserving</code>会去掉通知的监听。</p>
+
+<p>其实整个思路有点类似EventEmitter的子类作为了iOS Notification的转换器，将其转成了react-native的事件。</p>
+
+<p>这样的设计更加贴近iOS native，是个值得尝试的新特性。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-09-16 00:00:00 +0800" data-title="EventEmitter使用说明" data-url="/react-native/2016/09/16/ReactNative-EventEmitter%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

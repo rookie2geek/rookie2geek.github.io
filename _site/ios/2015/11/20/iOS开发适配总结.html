@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>iOS开发适配总结</title>
+  <meta name="description" content="iOS开发适配的简单思考。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/ios/2015/11/20/iOS%E5%BC%80%E5%8F%91%E9%80%82%E9%85%8D%E6%80%BB%E7%BB%93.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">iOS开发适配总结</h1>
+    <p class="post-meta">Nov 20, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>iOS开发适配的简单思考。</p>
+
+<h1 id="section">相对布局</h1>
+<p>因为iOS设备多样性越来越多，因此在布局中要尽量要相对布局，保证适配性。</p>
+
+<p>一个控件要在手机上显示，包括两方面的信息</p>
+
+<ul>
+  <li>控件大小</li>
+  <li>控件位置</li>
+</ul>
+
+<h2 id="section-1">控件位置</h2>
+<p>控件位置一般都不能给绝对的位置，需要给到相对位置，那么如何给到相对位置呢？</p>
+
+<p><img src="/img/iphone6p_position.png" alt="iPhone 6P 相对位置示例1" /></p>
+
+<p>参考上图，因为在iOS开发中(0,0)坐标是在屏幕的左上角，因此这个位置是绝对的。当我们要确定一个控件的位置时，可以依赖这个锚点，利用好iOS设备屏幕的上下左右边缘进行标注，如上图所示。</p>
+
+<p>以上是相对于屏幕的相对位置，其实相对于其他元素的相对位置也是一样的，一旦我们如上确定了一个元素，那这个元素的位置就固定了，接下来，我们就可以将这个元素作为锚点来决定我们另外的元素的位置。
+<img src="/img/iphone6p_position1.png" alt="iPhone 6P 相对位置示例2" /></p>
+
+<p><strong>所以，在我们进行布局的时候，一定要有非常良好的层次感，在iOS中叫View Hierarchy，找准相对的位置，这样才能更好的进行布局。</strong></p>
+
+<h2 id="section-2">控件大小</h2>
+<p>那么在不同的尺寸的屏幕上，究竟应该如何决定控件的大小呢？其实在定义控件位置的期间，很多控件的大小也已经定下来了，需要真正考虑控件大小的时候其实挺少的。因此每次在决定控件大小的时候，一定需要仔细的考虑这样做是否是必须的。</p>
+
+<h1 id="section-3">标注值</h1>
+<p>上面说的是布局的基本原则，那么在开发的时候应该怎么去保证在不同的iOS设备上都有良好的体验呢？</p>
+
+<ul>
+  <li>iOS设备尺寸</li>
+</ul>
+
+<table>
+  <thead>
+    <tr>
+      <th>Device</th>
+      <th>iPhone 4</th>
+      <th>iPhone 5</th>
+      <th>iPhone 6</th>
+      <th>iPhone 6+</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>px</td>
+      <td>640x960</td>
+      <td>640x1136</td>
+      <td>750x1334</td>
+      <td>1080x1920</td>
+    </tr>
+    <tr>
+      <td>point</td>
+      <td>320x480</td>
+      <td>320x568</td>
+      <td>375x667</td>
+      <td>414x736</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>可以发现不一样的机型屏幕的比例是不一样的，要想保证视觉体验的良好，我们可以选择<strong>等比例显示</strong>，这意味标注值需要随着屏幕尺寸的变化而变化，注意，<strong>我们这里讨论的都是point</strong>。</p>
+
+<p>这里假设我们的设计稿是以iPhone6为基准设计的，那如下的宏定义可以用于适配不同的机型。
+<code class="highlighter-rouge">smalltalk
+    #define WidthRatio SCREEN_WIDTH/375
+    #define HeightRatio SCREEN_HEIGHT/667
+    #define AdaptWidth(width) width*WidthRatio
+    #define AdaptHeight(height) height*HeightRatio
+</code>
+对所有的标注值，比如与屏幕边缘的距离、控件的高度等，都需要进行等比例的变化，以下图片展示了等比例变换之后的效果。下图是使用了该宏和不使用该宏的效果，请大家自行品鉴，红色是使用了适配，灰色是没有使用适配，大家可以重点看看整体的布局。
+<img src="/img/adapt.png" alt="标注值适配和没适配的效果比较" /></p>
+
+<p>另外有一个比较通用的标准可以考虑，视觉设计师在标注的时候，希望哪些地方保持不变就标注哪些地方。</p>
+
+<h1 id="x-2x">视觉给3x 2x的问题</h1>
+<p>那咱们就这个约定了，6为准标注，5和6标注是一样的，4会缩小0.8， 6会放大1.1</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2015-11-20 15:16:58 +0800" data-title="iOS开发适配总结" data-url="/ios/2015/11/20/iOS%E5%BC%80%E5%8F%91%E9%80%82%E9%85%8D%E6%80%BB%E7%BB%93.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

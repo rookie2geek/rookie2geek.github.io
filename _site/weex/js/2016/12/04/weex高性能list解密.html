@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>weex高性能list解密</title>
+  <meta name="description" content="weex是alibaba出品的用于移动端跨平台开发界面的框架，类似react-native。而ListView在移动端界面的开发中是非常重要的组件，无论是H5还是react-native都因为ListView的低性能而饱受非议。那么到底是什么样的实现让weex能拥有与众不同的ListView性能呢？">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/weex/js/2016/12/04/weex%E9%AB%98%E6%80%A7%E8%83%BDlist%E8%A7%A3%E5%AF%86.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">weex高性能list解密</h1>
+    <p class="post-meta">Dec 4, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p><a href="https://alibaba.github.io/weex/doc/tutorial.html">weex</a>是alibaba出品的用于移动端跨平台开发界面的框架，类似react-native。
+而ListView在移动端界面的开发中是非常重要的组件，无论是H5还是react-native都因为ListView的低性能而饱受非议。那么到底是什么样的实现让weex能拥有与众不同的ListView性能呢？</p>
+
+<h1 id="list">List示例</h1>
+<p>首先，让我们一起来看看weex下如何使用list。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nt">&lt;template&gt;</span>
+  <span class="nt">&lt;div&gt;</span>
+    <span class="nt">&lt;list</span> <span class="na">class=</span><span class="s">"list"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;refresh</span> <span class="na">class =</span><span class="err"> </span><span class="s">"refresh-view"</span> <span class="na">display=</span><span class="s">""</span> <span class="na">onrefresh=</span><span class="s">"onrefresh"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;text</span> <span class="na">if=</span><span class="s">""</span><span class="nt">&gt;</span> ↓ pull to refresh <span class="nt">&lt;/text&gt;</span>
+        <span class="nt">&lt;loading-indicator</span> <span class="na">class=</span><span class="s">"indicator"</span><span class="nt">&gt;&lt;/loading-indicator&gt;</span>
+      <span class="nt">&lt;/refresh&gt;</span>
+      <span class="nt">&lt;cell</span> <span class="na">onappear=</span><span class="s">"onappear"</span> <span class="na">ondisappear=</span><span class="s">"ondisappear"</span> <span class="na">class=</span><span class="s">"row"</span> <span class="na">repeat=</span><span class="s">""</span> <span class="na">index=</span><span class="s">""</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"item"</span><span class="nt">&gt;</span>
+          <span class="nt">&lt;text</span> <span class="na">class=</span><span class="s">"item-title"</span><span class="nt">&gt;</span>row <span class="nt">&lt;/text&gt;</span>
+        <span class="nt">&lt;/div&gt;</span>
+      <span class="nt">&lt;/cell&gt;</span>
+      <span class="nt">&lt;loading</span> <span class="na">class=</span><span class="s">"loading-view"</span> <span class="na">display=</span><span class="s">""</span> <span class="na">onloading=</span><span class="s">"onloading"</span><span class="nt">&gt;</span>
+        <span class="nt">&lt;text</span> <span class="na">if=</span><span class="s">""</span><span class="nt">&gt;</span>↑ Loadmore <span class="nt">&lt;/text&gt;</span>
+        <span class="nt">&lt;loading-indicator</span> <span class="na">class=</span><span class="s">"indicator"</span><span class="nt">&gt;&lt;/loading-indicator&gt;</span>
+      <span class="nt">&lt;/loading&gt;</span>
+    <span class="nt">&lt;/list&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+<span class="nt">&lt;/template&gt;</span>
+</code></pre>
+</div>
+<p>根据<a href="https://alibaba.github.io/weex/doc/components/list.html">weex的文档</a>，list的子组件只能是<code class="highlighter-rouge">cell</code>、<code class="highlighter-rouge">header</code>、<code class="highlighter-rouge">refresh</code>、<code class="highlighter-rouge">loading</code>以及固定位置的组件。</p>
+
+<ul>
+  <li>cell：决定list中每个cell的样子</li>
+  <li>header：当list滑到顶部的时候，会吸在顶部</li>
+  <li>refresh：下拉刷新</li>
+  <li>loading：上拉加载更多</li>
+</ul>
+
+<p>提供的功能虽然没有UITableView强大，但都是实际使用最需要的功能。上面list的demo使用到了<code class="highlighter-rouge">refresh</code>，<code class="highlighter-rouge">cell</code>以及<code class="highlighter-rouge">loading</code>子组件。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nt">&lt;style&gt;</span>
+<span class="o">...</span>
+<span class="nt">&lt;/style&gt;</span>
+</code></pre>
+</div>
+
+<p>list的样式并不在本文的分析范畴，所以这里就pass了。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nt">&lt;script&gt;</span>
+  <span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">methods</span><span class="p">:</span> <span class="p">{</span>
+      <span class="na">onappear</span><span class="p">:</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{</span> <span class="p">...</span> <span class="p">},</span>
+      <span class="na">ondisappear</span><span class="p">:</span><span class="kd">function</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{</span> <span class="p">...</span> <span class="p">},</span>
+      <span class="nx">onrefresh</span><span class="err">:</span> <span class="kd">function</span><span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{</span> <span class="p">...</span> <span class="p">},</span>
+      <span class="nx">onloading</span><span class="err">:</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span> <span class="p">...</span> <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="nx">data</span><span class="err">:</span> <span class="p">{</span>
+      <span class="nl">refresh_display</span><span class="p">:</span> <span class="s1">'hide'</span><span class="p">,</span>
+      <span class="nx">loading_display</span><span class="err">:</span> <span class="s1">'hide'</span><span class="p">,</span>
+      <span class="nx">appearMin</span><span class="err">:</span><span class="mi">1</span><span class="p">,</span>
+      <span class="nx">appearMax</span><span class="err">:</span><span class="mi">1</span><span class="p">,</span>
+      <span class="nx">appearIds</span><span class="err">:</span><span class="p">[],</span>
+      <span class="nx">rows</span><span class="err">:</span><span class="p">[</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">3</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">4</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">5</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">6</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">7</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">8</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">9</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">11</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">12</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">13</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">14</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">15</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">16</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">17</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">18</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">19</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">20</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">21</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">22</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">23</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">24</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">25</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">26</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">27</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">28</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">29</span><span class="p">}</span>
+      <span class="p">],</span>
+      <span class="nx">moreRows</span><span class="err">:</span> <span class="p">[</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">30</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">31</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">32</span><span class="p">},</span>
+        <span class="p">{</span><span class="na">id</span><span class="p">:</span> <span class="mi">33</span><span class="p">}</span>
+      <span class="p">]</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="nt">&lt;/script&gt;</span>
+</code></pre>
+</div>
+
+<p>js部分定义了相关的回调，其中需要特别关注下的是<code class="highlighter-rouge">repeat=""</code>，其根据rows提供的数据重复创建多个cell。</p>
+
+<h1 id="listuitableview">list和UITableView的对比</h1>
+
+<p>先来看下在iOS中我们是如何使用UITableView的：</p>
+
+<ol>
+  <li>继承<code class="highlighter-rouge">UITableViewCell</code>，实现自定义的Cell样式。</li>
+  <li>初始化<code class="highlighter-rouge">UITableView</code>，设置<code class="highlighter-rouge">DataSource</code>和<code class="highlighter-rouge">Delegate</code>。</li>
+  <li>实现<code class="highlighter-rouge">DataSource</code>，主要是设置<code class="highlighter-rouge">UITableView</code>的<code class="highlighter-rouge">Section</code>数目，每个<code class="highlighter-rouge">Section</code>的<code class="highlighter-rouge">Cell</code>数目，以及每个Cell的样式。</li>
+  <li>实现<code class="highlighter-rouge">Delegate</code>，主要是实现在操作UITableView时候的一些委托，比如<code class="highlighter-rouge">tableView:didSelectRowAtIndexPath:</code>等。</li>
+</ol>
+
+<p>相比之下，weex的就简单多了：</p>
+
+<ol>
+  <li>实现cell样式。（对应于iOS自定义Cell的实现）</li>
+  <li>按需实现refresh或者loading或者其他。（UITableView默认没有下拉刷新和加载更多，一般通过<code class="highlighter-rouge">UIScrollView+SVPullToRefresh</code>的扩展来实现）</li>
+  <li>设置数据，实现回调。（对应于iOS实现DataSource和实现Delegate，不过显然功能弱一些）</li>
+</ol>
+
+<p>其实从这里我们应该能够推断出一点什么了。没错， 
+<strong>weex的高性能list和其他框架不一样的地方就在于Cell的重用，也就是充分利用了UITableView或者RecycleView的重用机制实现了性能的优化</strong>。</p>
+
+<p>以上结论还只是猜测，那我们就继续扒扒代码看个清楚。</p>
+
+<h1 id="section">原理实现</h1>
+
+<p>如上demo的三个文件会被weex编译成一个js文件，然后通过jsframework调用到native，<a href="https://yq.aliyun.com/articles/59934">盗用个图</a>，大家或许可以明白一些。
+其实一点都不复杂，就是JSCore或者V8做了一个桥，让native能和js共享一个context而已。</p>
+
+<p><img src="http://gtms02.alicdn.com/tps/i2/TB1ootBMpXXXXXrXXXXwi60UVXX-596-397.png" alt="Weex原理" /></p>
+
+<p>js通过桥告诉了Native现在有list组件，子组件有cell、refresh和loading。下面就直接扒native的代码看。</p>
+
+<p>weex中用两个概念，一个是模块（module），一个是组件（component），前者主要是功能的，例如存储，而后者主要是视图，比如div这样的。很显然list、cell等都是组件类别的。</p>
+
+<p>在WXSDKEngine的源码中，可以知道<code class="highlighter-rouge">list</code>其实对应的是<code class="highlighter-rouge">WXListComponent</code>，<code class="highlighter-rouge">cell</code>对应的是<code class="highlighter-rouge">WXCellComponent</code>，<code class="highlighter-rouge">header</code>对应的是<code class="highlighter-rouge">WXHeaderComponent</code>等等。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// WXSDKEngine.m
+</span>
+<span class="p">[</span><span class="n">self</span> <span class="nf">registerComponent</span><span class="p">:</span><span class="s">@"list"</span> <span class="nf">withClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="s">@"WXListComponent"</span><span class="p">)</span> <span class="nf">withProperties</span><span class="p">:</span><span class="nb">nil</span><span class="p">];</span>
+<span class="p">[</span><span class="n">self</span> <span class="nf">registerComponent</span><span class="p">:</span><span class="s">@"header"</span> <span class="nf">withClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="s">@"WXHeaderComponent"</span><span class="p">)];</span>
+<span class="p">[</span><span class="n">self</span> <span class="nf">registerComponent</span><span class="p">:</span><span class="s">@"cell"</span> <span class="nf">withClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="s">@"WXCellComponent"</span><span class="p">)];</span>
+<span class="p">[</span><span class="n">self</span> <span class="nf">registerComponent</span><span class="p">:</span><span class="s">@"loading"</span> <span class="nf">withClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="s">@"WXLoadingComponent"</span><span class="p">)];</span>
+<span class="p">[</span><span class="n">self</span> <span class="nf">registerComponent</span><span class="p">:</span><span class="s">@"refresh"</span> <span class="nf">withClass</span><span class="p">:</span><span class="n">NSClassFromString</span><span class="p">(</span><span class="s">@"WXRefreshComponent"</span><span class="p">)];</span>
+</code></pre>
+</div>
+
+<h2 id="wxcomponent">WXComponent</h2>
+
+<p>因为即将讨论的都是组件，那就必须要先了解下weex的组件系统。
+其实不论是weex也好，react-native也好，还是具备<a href="https://yq.aliyun.com/articles/57996?spm=5176.100240.searchblog.21.v4J5mQ">组件化能力</a>的框架，都是有类似的组件系统的。</p>
+
+<p>那当我们在说组件系统的时候，我们到底在说什么呢？在weex中其实就是weex的组件基类 —— <code class="highlighter-rouge">WXComponent</code>。下面挑重点看看weex的组件系统都有哪些功能。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c1">// 组件的初始化函数：
+// + ref：每个实例化组件都是自己在jsContext中的唯一的标识
+// + type：组件的类型，默认register的时候的名字就是type
+// + styles：css编译出来决定样式的字典
+// + attributes：属性字典
+// + events：事件系统
+// + weexInstance：weex SDK全局只有一个实例，这里就是传入这个实例（真心为了性能不择手段）
+</span><span class="k">-</span> <span class="p">(</span><span class="n">instancetype</span><span class="p">)</span><span class="nf">initWithRef</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">ref</span>
+                       <span class="nf">type</span><span class="p">:(</span><span class="n">NSString</span><span class="o">*</span><span class="p">)</span><span class="nv">type</span>
+                     <span class="nf">styles</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">styles</span>
+                 <span class="nf">attributes</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">attributes</span>
+                     <span class="nf">events</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSArray</span> <span class="o">*</span><span class="p">)</span><span class="nv">events</span>
+               <span class="nf">weexInstance</span><span class="p">:(</span><span class="n">WXSDKInstance</span> <span class="o">*</span><span class="p">)</span><span class="nv">weexInstance</span><span class="p">;</span>
+
+<span class="c1">// 子组件
+</span><span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">readonly</span><span class="p">,</span> <span class="n">strong</span><span class="p">,</span> <span class="n">nullable</span><span class="p">)</span> <span class="n">NSArray</span><span class="o">&lt;</span><span class="n">WXComponent</span> <span class="o">*&gt;</span> <span class="o">*</span><span class="n">subcomponents</span><span class="p">;</span>
+
+<span class="c1">// 父组件
+</span><span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">readonly</span><span class="p">,</span> <span class="n">weak</span><span class="p">,</span> <span class="n">nullable</span><span class="p">)</span> <span class="n">WXComponent</span> <span class="o">*</span><span class="n">supercomponent</span><span class="p">;</span>
+
+<span class="c1">// 通过flexbox计算之后的frame
+</span><span class="k">@property</span><span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">readonly</span><span class="p">,</span> <span class="n">assign</span><span class="p">)</span> <span class="n">CGRect</span> <span class="n">calculatedFrame</span><span class="p">;</span>
+
+<span class="c1">// 一堆生命周期函数
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">viewWillLoad</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">viewDidLoad</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">viewWillUnload</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">viewDidUnload</span><span class="p">;</span>
+
+<span class="c1">// 调整组件结构
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">insertSubview</span><span class="p">:(</span><span class="n">WXComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">subcomponent</span> <span class="nf">atIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">removeFromSuperview</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">moveToSuperview</span><span class="p">:(</span><span class="n">WXComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">newSupercomponent</span> <span class="nf">atIndex</span><span class="p">:(</span><span class="n">NSUInteger</span><span class="p">)</span><span class="nv">index</span><span class="p">;</span>
+
+<span class="c1">// 事件相关
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">fireEvent</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">eventName</span> <span class="nf">params</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">params</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">fireEvent</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">eventName</span> <span class="nf">params</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">params</span> <span class="nf">domChanges</span><span class="p">:(</span><span class="n">nullable</span> <span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">domChanges</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">addEvent</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">eventName</span><span class="p">;</span>
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">removeEvent</span><span class="p">:(</span><span class="n">NSString</span> <span class="o">*</span><span class="p">)</span><span class="nv">eventName</span><span class="p">;</span>
+
+<span class="c1">// 更新样式
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">updateStyles</span><span class="p">:(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">styles</span><span class="p">;</span>
+
+<span class="c1">// 更新属性
+</span><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">updateAttributes</span><span class="p">:(</span><span class="n">NSDictionary</span> <span class="o">*</span><span class="p">)</span><span class="nv">attributes</span><span class="p">;</span>
+
+</code></pre>
+</div>
+
+<p>下面的这个代码比较能说明问题，UIView和CALayer都是和WXComponent一一对应的。这就是weex的组件系统和iOS的组件系统建立联系的地方。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">@interface</span> <span class="nc">UIView</span> <span class="p">(</span><span class="nl">WXComponent</span><span class="p">)</span>
+
+<span class="err">@</span><span class="nc">property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">WXComponent</span> <span class="o">*</span><span class="n">wx_component</span><span class="p">;</span>
+
+<span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">NSString</span> <span class="o">*</span><span class="n">wx_ref</span><span class="p">;</span>
+
+<span class="k">@end</span>
+
+<span class="k">@interface</span> <span class="nc">CALayer</span> <span class="p">(</span><span class="nl">WXComponent</span><span class="p">)</span>
+
+<span class="err">@</span><span class="nc">property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">WXComponent</span> <span class="o">*</span><span class="n">wx_component</span><span class="p">;</span>
+
+<span class="k">@end</span>
+</code></pre>
+</div>
+
+<p>之上说的只是weex组件系统的一部分，组件系统还有一个非常重要个功能是布局。
+在weex中，这一部分的功能是通过<code class="highlighter-rouge">WXComponent+Layout</code>来实现的，布局系统使用的是flexbox。列举几个主要是函数。</p>
+
+<pre><code class="language-small-talk">// 布局计算完毕
+- (void)_frameDidCalculated:(BOOL)isChanged;
+
+// 根据父类的绝对位置计算frame，如果frame改变的话，将自己加到dirtyComponents里面，进而通知
+- (void)_calculateFrameWithSuperAbsolutePosition:(CGPoint)superAbsolutePosition
+                           gatherDirtyComponents:(NSMutableSet&lt;WXComponent *&gt; *)dirtyComponents;
+
+// 布局结束
+- (void)_layoutDidFinish;
+@
+</code></pre>
+
+<h2 id="wxcellcomponent">WXCellComponent</h2>
+
+<p>下面我们来看看Cell组件的实现。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">@interface</span> <span class="nc">WXCellComponent</span> <span class="p">:</span> <span class="nc">WXComponent</span>
+
+<span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">strong</span><span class="p">)</span> <span class="n">NSString</span> <span class="o">*</span><span class="n">scope</span><span class="p">;</span>
+<span class="k">@property</span> <span class="p">(</span><span class="n">nonatomic</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span> <span class="n">WXListComponent</span> <span class="o">*</span><span class="n">list</span><span class="p">;</span>
+<span class="k">@end</span>
+</code></pre>
+</div>
+
+<p>可以发现，每个cell组件都隶属于特定的list，<a href="https://alibaba.github.io/weex/doc/components/cell.html">文档中也是这么说的</a>，cell必须是list的子组件。</p>
+
+<p>仔细查看WXCellComponent的实现可以发现，其是没有什么特别特殊的地方，其与其他组件最大的不同就是对应有list组件，其所有的回调都会相应的调用list的方法，更新list中对自己的状态。比如:</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">_frameDidCalculated</span><span class="p">:(</span><span class="n">BOOL</span><span class="p">)</span><span class="nv">isChanged</span>
+<span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">_frameDidCalculated</span><span class="p">:</span><span class="n">isChanged</span><span class="p">];</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">isChanged</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">list</span> <span class="nf">cellDidLayout</span><span class="p">:</span><span class="n">self</span><span class="p">];</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="n">_removeFromSupercomponent</span>
+<span class="p">{</span>
+    <span class="p">[</span><span class="n">super</span> <span class="nf">_removeFromSupercomponent</span><span class="p">];</span>
+    
+    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">list</span> <span class="nf">cellDidRemove</span><span class="p">:</span><span class="n">self</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>refresh、loading以及header等都是类似的组件，这里就不详述了，有兴趣的同学可以查看源码阅读。</p>
+
+<h2 id="wxlistcomponent">WXListComponent</h2>
+
+<p><code class="highlighter-rouge">WXListComponent</code>是本文的主角，放在最后出场也算是压轴了，首先来看一下头文件。非常简单，类似所有的<code class="highlighter-rouge">ListView</code>，都是继承自<code class="highlighter-rouge">ScrollView</code>，其还包括了一些针对cell操作的api，上面源码中的<code class="highlighter-rouge">cellDidLayout</code>就是在这里定义的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">@interface</span> <span class="nc">WXListComponent</span> <span class="p">:</span> <span class="nc">WXScrollerComponent</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">cellDidRemove</span><span class="p">:(</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">cell</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">cellDidLayout</span><span class="p">:(</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">cell</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">headerDidLayout</span><span class="p">:(</span><span class="n">WXHeaderComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">header</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">cellDidRendered</span><span class="p">:(</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">cell</span><span class="p">;</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">cell</span><span class="p">:(</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">cell</span> <span class="nf">didMoveToIndex</span><span class="p">:(</span><span class="n">NSUInteger</span><span class="p">)</span><span class="nv">index</span><span class="p">;</span>
+
+<span class="k">@end</span>
+</code></pre>
+</div>
+
+<p>其实到这里我们已经知道cell、header、refresh、loading等都是如何根据js代码生成native组件的，现在，我们还不知道的是，list是怎么把他们拼在一起的。
+下面的代码就能说明这一切。</p>
+
+<p>从这里我们可以看到，ListComponent是依赖了tableview的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">@implementation</span> <span class="nc">WXListComponent</span>
+<span class="p">{</span>
+    <span class="n">__weak</span> <span class="n">UITableView</span> <span class="o">*</span> <span class="n">_tableView</span><span class="p">;</span>
+
+    <span class="c1">// Only accessed on component thread
+</span>    <span class="n">NSMutableArray</span><span class="o">&lt;</span><span class="n">WXSection</span> <span class="o">*&gt;</span> <span class="o">*</span><span class="n">_sections</span><span class="p">;</span>
+    <span class="c1">// Only accessed on main thread
+</span>    <span class="n">NSMutableArray</span><span class="o">&lt;</span><span class="n">WXSection</span> <span class="o">*&gt;</span> <span class="o">*</span><span class="n">_completedSections</span><span class="p">;</span>
+    
+    <span class="n">NSUInteger</span> <span class="n">_previousLoadMoreRowNumber</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="p">...</span>
+<span class="k">@end</span>
+</code></pre>
+</div>
+
+<p>从这里我们可以看到，list、cell、header、loading以及fixed-component是如何通过组件系统联系起来的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">_insertSubcomponent</span><span class="p">:(</span><span class="n">WXComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">subcomponent</span> <span class="nf">atIndex</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">index</span>
+<span class="p">{</span>
+    <span class="c1">// 子组件如果是cell
+</span>    <span class="k">if</span> <span class="p">([</span><span class="n">subcomponent</span> <span class="nf">isKindOfClass</span><span class="p">:[</span><span class="n">WXCellComponent</span> <span class="nf">class</span><span class="p">]])</span> <span class="p">{</span>
+        <span class="p">((</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="n">subcomponent</span><span class="p">).</span><span class="n">list</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+
+    <span class="c1">// 子组件如果是header
+</span>    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">([</span><span class="n">subcomponent</span> <span class="nf">isKindOfClass</span><span class="p">:[</span><span class="n">WXHeaderComponent</span> <span class="nf">class</span><span class="p">]])</span> <span class="p">{</span>
+        <span class="p">((</span><span class="n">WXHeaderComponent</span> <span class="o">*</span><span class="p">)</span><span class="n">subcomponent</span><span class="p">).</span><span class="n">list</span> <span class="o">=</span> <span class="n">self</span><span class="p">;</span>
+
+    <span class="c1">// 除了上述两个，子组件只能是refresh 、loading或者fixed-component
+</span>    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">[</span><span class="n">subcomponent</span> <span class="nf">isKindOfClass</span><span class="p">:[</span><span class="n">WXRefreshComponent</span> <span class="nf">class</span><span class="p">]]</span>
+               <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="p">[</span><span class="n">subcomponent</span> <span class="nf">isKindOfClass</span><span class="p">:[</span><span class="n">WXLoadingComponent</span> <span class="nf">class</span><span class="p">]]</span>
+               <span class="o">&amp;&amp;</span> <span class="n">subcomponent</span><span class="o">-&gt;</span><span class="n">_positionType</span> <span class="o">!=</span> <span class="n">WXPositionTypeFixed</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">WXLogError</span><span class="p">(</span><span class="s">@"list only support cell/header/refresh/loading/fixed-component as child."</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="p">[</span><span class="n">super</span> <span class="nf">_insertSubcomponent</span><span class="p">:</span><span class="n">subcomponent</span> <span class="nf">atIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+    
+    <span class="c1">// 构造section
+</span>    <span class="n">NSIndexPath</span> <span class="o">*</span><span class="n">indexPath</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span> <span class="nf">indexPathForSubIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">_sections</span><span class="p">.</span><span class="n">count</span> <span class="o">&lt;=</span> <span class="n">indexPath</span><span class="p">.</span><span class="n">section</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">WXSection</span> <span class="o">*</span><span class="n">section</span> <span class="o">=</span> <span class="p">[</span><span class="n">WXSection</span> <span class="nf">new</span><span class="p">];</span>
+        <span class="k">if</span> <span class="p">([</span><span class="n">subcomponent</span> <span class="nf">isKindOfClass</span><span class="p">:[</span><span class="n">WXHeaderComponent</span> <span class="nf">class</span><span class="p">]])</span> <span class="p">{</span>
+            <span class="n">section</span><span class="p">.</span><span class="n">header</span> <span class="o">=</span> <span class="p">(</span><span class="n">WXHeaderComponent</span><span class="o">*</span><span class="p">)</span><span class="n">subcomponent</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="c1">//TODO: consider insert header at middle
+</span>        <span class="p">[</span><span class="n">_sections</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">section</span><span class="p">];</span>
+        <span class="n">NSUInteger</span> <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">_sections</span> <span class="nf">indexOfObject</span><span class="p">:</span><span class="n">section</span><span class="p">];</span>
+        <span class="c1">// section的数目是有header和cell在template中出现的顺序决定的，具体可以查看函数`indexPathForSubIndex:`
+</span>        <span class="n">NSIndexSet</span> <span class="o">*</span><span class="n">indexSet</span> <span class="o">=</span> <span class="p">[</span><span class="n">NSIndexSet</span> <span class="nf">indexSetWithIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span> 
+        <span class="n">WXSection</span> <span class="o">*</span><span class="n">completedSection</span> <span class="o">=</span> <span class="p">[</span><span class="n">section</span> <span class="nf">copy</span><span class="p">];</span>
+        
+        <span class="c1">// 这里很重要，当你最终组合除了indexSet之后，调用_tableView的`insertSections`来更新tableView。
+</span>        <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">weexInstance</span><span class="p">.</span><span class="n">componentManager</span> <span class="nf">_addUITask</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+            <span class="p">[</span><span class="n">_completedSections</span> <span class="nf">addObject</span><span class="p">:</span><span class="n">completedSection</span><span class="p">]</span><span class="err">;</span>
+            <span class="n">WXLogDebug</span><span class="p">(</span><span class="s">@"Insert section:%ld"</span><span class="p">,</span>  <span class="p">(</span><span class="kt">unsigned</span> <span class="kt">long</span><span class="p">)[</span><span class="n">_completedSections</span> <span class="nf">indexOfObject</span><span class="p">:</span><span class="n">completedSection</span><span class="p">])</span><span class="err">;</span>
+            <span class="p">[</span><span class="n">UIView</span> <span class="nf">performWithoutAnimation</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+                <span class="p">[</span><span class="n">_tableView</span> <span class="nf">insertSections</span><span class="p">:</span><span class="n">indexSet</span> <span class="nf">withRowAnimation</span><span class="p">:</span><span class="n">UITableViewRowAnimationNone</span><span class="p">]</span><span class="err">;</span>
+            <span class="p">}]</span><span class="err">;</span>
+        <span class="p">}];</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>再举另外一个例子。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="nf">cellDidLayout</span><span class="p">:(</span><span class="n">WXCellComponent</span> <span class="o">*</span><span class="p">)</span><span class="nv">cell</span>
+<span class="p">{</span>
+    <span class="n">WXAssertComponentThread</span><span class="p">()</span> <span class="p">;</span>
+    
+    <span class="n">NSUInteger</span> <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">subcomponents</span> <span class="nf">indexOfObject</span><span class="p">:</span><span class="n">cell</span><span class="p">];</span>
+    <span class="n">NSIndexPath</span> <span class="o">*</span><span class="n">indexPath</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span> <span class="nf">indexPathForSubIndex</span><span class="p">:</span><span class="n">index</span><span class="p">];</span>
+
+    <span class="n">NSInteger</span> <span class="n">sectionNum</span> <span class="o">=</span> <span class="n">indexPath</span><span class="p">.</span><span class="n">section</span><span class="p">;</span>
+    <span class="n">NSInteger</span> <span class="n">row</span> <span class="o">=</span> <span class="n">indexPath</span><span class="p">.</span><span class="n">row</span><span class="p">;</span>
+    <span class="n">NSMutableArray</span> <span class="o">*</span><span class="n">sections</span> <span class="o">=</span> <span class="n">_sections</span><span class="p">;</span>
+    <span class="n">WXSection</span> <span class="o">*</span><span class="n">section</span> <span class="o">=</span> <span class="n">sections</span><span class="p">[</span><span class="nf">sectionNum</span><span class="p">];</span>
+    <span class="n">WXAssert</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="s">@"no section found for section number:%ld"</span><span class="p">,</span> <span class="n">sectionNum</span><span class="p">);</span>
+    <span class="n">NSMutableArray</span> <span class="o">*</span><span class="n">completedSections</span><span class="p">;</span>
+    <span class="n">BOOL</span> <span class="n">isReload</span> <span class="o">=</span> <span class="p">[</span><span class="n">section</span><span class="p">.</span><span class="n">rows</span> <span class="nf">containsObject</span><span class="p">:</span><span class="n">cell</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">isReload</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">section</span><span class="p">.</span><span class="n">rows</span> <span class="nf">insertObject</span><span class="p">:</span><span class="n">cell</span> <span class="nf">atIndex</span><span class="p">:</span><span class="n">row</span><span class="p">];</span>
+        <span class="c1">// deep copy
+</span>        <span class="n">completedSections</span> <span class="o">=</span> <span class="p">[[</span><span class="n">NSMutableArray</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithArray</span><span class="p">:</span><span class="n">sections</span> <span class="nf">copyItems</span><span class="p">:</span><span class="nb">YES</span><span class="p">];;</span>
+    <span class="p">}</span>
+    
+    <span class="c1">// 和上面非常类似，如果不是reload的话，就直接调用tableview insert，否则的话就调用tableview reload。
+</span>    <span class="p">[</span><span class="n">self</span><span class="p">.</span><span class="n">weexInstance</span><span class="p">.</span><span class="n">componentManager</span> <span class="nf">_addUITask</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">isReload</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">WXLogDebug</span><span class="p">(</span><span class="s">@"Insert cell:%@ at indexPath:%@"</span><span class="p">,</span> <span class="n">cell</span><span class="p">.</span><span class="n">ref</span><span class="p">,</span> <span class="n">indexPath</span><span class="p">)</span><span class="err">;</span>
+            <span class="n">_completedSections</span> <span class="o">=</span> <span class="n">completedSections</span><span class="err">;</span>
+            <span class="p">[</span><span class="n">UIView</span> <span class="nf">performWithoutAnimation</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+                <span class="p">[</span><span class="n">_tableView</span> <span class="nf">insertRowsAtIndexPaths</span><span class="p">:[</span><span class="n">NSArray</span> <span class="nf">arrayWithObject</span><span class="p">:</span><span class="n">indexPath</span><span class="p">]</span> <span class="nf">withRowAnimation</span><span class="p">:</span><span class="n">UITableViewRowAnimationNone</span><span class="p">]</span><span class="err">;</span>
+            <span class="p">}]</span><span class="err">;</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="n">WXLogInfo</span><span class="p">(</span><span class="s">@"Reload cell:%@ at indexPath:%@"</span><span class="p">,</span> <span class="n">cell</span><span class="p">.</span><span class="n">ref</span><span class="p">,</span> <span class="n">indexPath</span><span class="p">)</span><span class="err">;</span>
+            <span class="p">[</span><span class="n">UIView</span> <span class="nf">performWithoutAnimation</span><span class="p">:</span><span class="o">^</span><span class="p">{</span>
+                <span class="p">[</span><span class="n">_tableView</span> <span class="nf">reloadRowsAtIndexPaths</span><span class="p">:[</span><span class="n">NSArray</span> <span class="nf">arrayWithObject</span><span class="p">:</span><span class="n">indexPath</span><span class="p">]</span> <span class="nf">withRowAnimation</span><span class="p">:</span><span class="n">UITableViewRowAnimationNone</span><span class="p">]</span><span class="err">;</span>
+            <span class="p">}]</span><span class="err">;</span>
+        <span class="p">}</span>
+    <span class="p">}];</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>再来看一下TableView的DataSource，</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">-</span> <span class="p">(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nf">numberOfSectionsInTableView</span><span class="p">:(</span><span class="n">UITableView</span> <span class="o">*</span><span class="p">)</span><span class="nv">tableView</span>
+<span class="p">{</span>
+    <span class="k">return</span> <span class="n">_completedSections</span><span class="p">.</span><span class="n">count</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nf">tableView</span><span class="p">:(</span><span class="n">UITableView</span> <span class="o">*</span><span class="p">)</span><span class="nv">tableView</span> <span class="nf">numberOfRowsInSection</span><span class="p">:(</span><span class="n">NSInteger</span><span class="p">)</span><span class="nv">section</span>
+<span class="p">{</span>
+    <span class="k">return</span> <span class="p">((</span><span class="n">WXSection</span> <span class="o">*</span><span class="p">)[</span><span class="n">_completedSections</span> <span class="nf">wx_safeObjectAtIndex</span><span class="p">:</span><span class="n">section</span><span class="p">]).</span><span class="n">rows</span><span class="p">.</span><span class="n">count</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">-</span> <span class="p">(</span><span class="n">UITableViewCell</span> <span class="o">*</span><span class="p">)</span><span class="nf">tableView</span><span class="p">:(</span><span class="n">UITableView</span> <span class="o">*</span><span class="p">)</span><span class="nv">tableView</span> <span class="nf">cellForRowAtIndexPath</span><span class="p">:(</span><span class="n">NSIndexPath</span> <span class="o">*</span><span class="p">)</span><span class="nv">indexPath</span>
+<span class="p">{</span>
+    <span class="n">WXLogDebug</span><span class="p">(</span><span class="s">@"Getting cell at indexPath:%@"</span><span class="p">,</span> <span class="n">indexPath</span><span class="p">);</span>
+    <span class="k">static</span> <span class="n">NSString</span> <span class="o">*</span><span class="n">reuseIdentifier</span> <span class="o">=</span> <span class="s">@"WXTableViewCell"</span><span class="p">;</span>
+    
+    <span class="n">UITableViewCell</span> <span class="o">*</span><span class="n">cellView</span> <span class="o">=</span> <span class="p">[</span><span class="n">_tableView</span> <span class="nf">dequeueReusableCellWithIdentifier</span><span class="p">:</span><span class="n">reuseIdentifier</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">cellView</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">cellView</span> <span class="o">=</span> <span class="p">[[</span><span class="n">UITableViewCell</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithStyle</span><span class="p">:</span><span class="n">UITableViewCellStyleDefault</span> <span class="nf">reuseIdentifier</span><span class="p">:</span><span class="n">reuseIdentifier</span><span class="p">];</span>
+        <span class="n">cellView</span><span class="p">.</span><span class="n">backgroundColor</span> <span class="o">=</span> <span class="p">[</span><span class="n">UIColor</span> <span class="nf">clearColor</span><span class="p">];</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="p">}</span>
+    
+    <span class="c1">// 这里可以看到，cell都是从缓存中读取出来的。
+</span>    <span class="n">WXCellComponent</span> <span class="o">*</span><span class="n">cell</span> <span class="o">=</span> <span class="p">[</span><span class="n">self</span> <span class="nf">cellForIndexPath</span><span class="p">:</span><span class="n">indexPath</span><span class="p">];</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">cell</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">cellView</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">cell</span><span class="p">.</span><span class="n">view</span><span class="p">.</span><span class="n">superview</span> <span class="o">==</span> <span class="n">cellView</span><span class="p">.</span><span class="n">contentView</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">cellView</span><span class="p">;</span>
+    <span class="p">}</span>
+    
+    <span class="k">for</span> <span class="p">(</span><span class="n">UIView</span> <span class="o">*</span><span class="n">view</span> <span class="k">in</span> <span class="n">cellView</span><span class="p">.</span><span class="n">contentView</span><span class="p">.</span><span class="n">subviews</span><span class="p">)</span> <span class="p">{</span>
+        <span class="p">[</span><span class="n">view</span> <span class="nf">removeFromSuperview</span><span class="p">];</span>
+    <span class="p">}</span>
+    
+    <span class="p">[</span><span class="n">cellView</span><span class="p">.</span><span class="n">contentView</span> <span class="nf">addSubview</span><span class="p">:</span><span class="n">cell</span><span class="p">.</span><span class="n">view</span><span class="p">];</span>
+    
+    <span class="n">WXLogDebug</span><span class="p">(</span><span class="s">@"Created cell:%@ view:%@ cellView:%@ at indexPath:%@"</span><span class="p">,</span> <span class="n">cell</span><span class="p">.</span><span class="n">ref</span><span class="p">,</span> <span class="n">cell</span><span class="p">.</span><span class="n">view</span><span class="p">,</span> <span class="n">cellView</span><span class="p">,</span> <span class="n">indexPath</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">cellView</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<h1 id="section-1">总结</h1>
+
+<p>WeexSDK关于List的细节还非常多，但通过上面的分析，我们已经大致清楚了Weex是如何实现高性能listview的，稍微总结一下。</p>
+
+<ul>
+  <li>规定语法，list组件的子组件只能是cell、header、refresh、loading已经fixed-component</li>
+  <li>当指定cell、header、refresh、loading和fixed-component的时候，组件系统都会根据css计算出这些子组件的布局。</li>
+  <li>cell和header是比较特殊的组件，他们持有list的引用，会在自身发生变化的时候调用list组件方法更新list状态，而且他们出现的顺序会决定最终tableview的section数目和每个section的row的数目。</li>
+</ul>
+
+<p>其实这里比较不一样的是 <strong>weex缓存了所有的Cell组件</strong> ，他们依然被创建了，weex根据Cell的变化通过<code class="highlighter-rouge">reloadRowsAtIndexPaths</code>、<code class="highlighter-rouge">insertRowsAtIndexPaths</code>、<code class="highlighter-rouge">deleteRowsAtIndexPaths</code>等类似的方法来更新Tableview，所以准确的说weex并没有使用到UITableView的重用机制，虽然解决了性能问题，但内存问题依然存在。</p>
+
+<p>因此咱们的猜测是错误的。</p>
+
+<p>再来看一下正常情况下我们使用UITableView。</p>
+
+<ol>
+  <li>准备数据</li>
+  <li>reload table</li>
+</ol>
+
+<p>UITableView掌握主动权来控制Cell的创建和显示，进而实现Cell复用，因此weex应该还有是不少改进的地方。</p>
+
+<p>在我的理解，tableview重用最核心的就是cell模板的复用，是不是可以想办法让js能定义cell模板，然后native就根据数据给的id来使用相应的模板来渲染list，从而避免了需要先渲染cell然后再来决定list的显示，期待weex牛逼的工程师们再给我们带来惊喜。</p>
+
+<h1 id="section-2">备注</h1>
+
+<p>最近研究RN高性能ListView，react-native-tableview绝对是当前为止最为牛逼的实现，巧妙的利用了RN中的module，另外虚拟节点（不真正渲染的节点）应该也是一个不错的解。等后面有时间了会继续分享。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-12-04 00:00:00 +0800" data-title="weex高性能list解密" data-url="/weex/js/2016/12/04/weex%E9%AB%98%E6%80%A7%E8%83%BDlist%E8%A7%A3%E5%AF%86.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

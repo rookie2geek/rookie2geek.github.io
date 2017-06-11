@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>CocoaPods详解</title>
+  <meta name="description" content="阅读CocoaPods源码的一点点注释。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/ios/cocoapods/2016/01/24/CocoaPods%E8%AF%A6%E8%A7%A3.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">CocoaPods详解</h1>
+    <p class="post-meta">Jan 24, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>阅读CocoaPods源码的一点点注释。</p>
+
+<h1 id="cocoapods">CocoaPods简介</h1>
+<p>相信写过iOS程序的同学们都应该就接触过CocoaPods的，他就是iOS界的Maven，帮助开发者们管理着程序依赖的第三方framework乃至自己拆分出来的framework。通过简单的在Podfile中配置项目的依赖，CocoaPods将自动递归地寻找依赖，获取源码并创建工程。cocoaPods的使用是非常直观的，本文主要不介绍CocoaPods的使用，而是简单的探寻其背后的原理和实现。</p>
+
+<p>以下是使用CocoaPods的几乎全部文档，附上创送门，给需要的孩子。</p>
+
+<ul>
+  <li><a href="http://guides.cocoapods.org/using/getting-started.html#installation">CocoaPods的安装</a></li>
+  <li><a href="https://guides.cocoapods.org/syntax/podfile.html">Podfile参考文档</a></li>
+  <li><a href="https://guides.cocoapods.org/syntax/podspec.html">Podspec参考文档</a></li>
+  <li><a href="https://guides.cocoapods.org/terminal/commands.html#commands">Pod命令参考</a></li>
+</ul>
+
+<h1 id="projecttargetworkspacescheme">Project&amp;&amp;Target&amp;&amp;Workspace&amp;&amp;Scheme</h1>
+<p><a href="https://developer.apple.com/library/ios/featuredarticles/XcodeConcepts/Concept-Targets.html#//apple_ref/doc/uid/TP40009328-CH4-SW1">参考文档</a>
+## Target
+一个project可以包含一个或者多个target，每个target对应生成一个产品。
+每个target定义了相应的产品，并管理构建这个产品所需要的源文件和处理这些文件的指令。处理文件的指令主要由build settings和build phases决定。target的build settings继承自project的build settings，但可以在target覆盖修改。</p>
+
+<h2 id="project">Project</h2>
+<p>Project可以单独存在，也可以包含在workspace中；Project包含一个或多个target，用于构建一个或多个产品。Project管理着所有的文件、资源以及构建一个或者多个软件所需要的信息。同时也为所有的target提供默认的build settings。
+一个Project文件包含以下信息：</p>
+
+<ul>
+  <li>源文件相关，包含源代码、库和framework、资源文件、nibs等</li>
+  <li>用来管理源文件的组信息</li>
+  <li>Project层级的配置信息</li>
+  <li>Targets</li>
+  <li>用于调试或测试程序的可执行环境</li>
+</ul>
+
+<h2 id="workspace">Workspace</h2>
+<p>一个workspace可以包含多个projects，以及其他任何你想要管理的文件。workspace是个Xcode文档，将projects和其他文档组合，方便一起管理。workspace还隐性的或者显性的提供了其包含的projects以及他们的targets之间的关系。
+workspace让Projects之间的工作变得简单，比如代码自动提示、跳转到定义等等。在一个workspace中的projects共享一个build目录，不同的workspace拥有不同的build目录。所以workspace能提供隐性的依赖关系解决，同时通过配置来提供显性的关系解决。</p>
+
+<h2 id="scheme">Scheme</h2>
+<p>scheme定义了一组需要构建的targets，以及构建时需要的配置和一组需要执行的test</p>
+
+<h1 id="xcode-command-line">Xcode Command Line</h1>
+
+<h2 id="xcrun">xcrun</h2>
+<p>xcrun可以用来定位Xcode的开发者工具，也可以用来调用Xcode的开发者工具</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>xcrun --sdk iphoneos9.0 --find clang
+
+ <span class="c"># sample result</span>
+ <span class="c"># /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang</span>
+</code></pre>
+</div>
+
+<h2 id="xcodebuild">xcodebuild</h2>
+<p>xcodebuild用于构建Xcode工程中的一个或者多个target，或者构建Xcode工程或者workspace中的scheme</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>xcodebuild -project MyProject.xcodeproj -target Target1 -target Target2 -configuration Debug
+
+<span class="c"># 查看Xcode支持的变量定义，可以用在ruby中</span>
+xcodebuild -project xxx.xcodeproj -target <span class="s2">"xxx"</span> -showBuildSettings
+</code></pre>
+</div>
+
+<h2 id="xcode-select">xcode-select</h2>
+<p>xcode-select控制xcrun、xcodebuild、cc以及其他xcode和BSD开发工具的developer目录，他使得不同版本xcode工具之间的切换变得简单。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>xcode-select --switch /Applications/Xcode.app/Contents/Developer
+</code></pre>
+</div>
+
+<h2 id="xcodeproj">xcodeproj</h2>
+<p><a href="http://www.rubydoc.info/gems/xcodeproj">xcodeproj</a>
+xcodeproj是ruby写的用来创建和修改xcode工程的工具。</p>
+
+<h1 id="cocoapods-1">CocoaPods</h1>
+<p>前面讲了那么多准备知识，对于理解cocoapods的源码还是非常有用的。下面我们正式进入cocoapods的源码解析。<a href="https://github.com/CocoaPods/CocoaPods">CocoaPods源码地址</a></p>
+
+<p>CocoaPods的源码结构为:</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>CocoaPods
+    - bin        : pod和sandbox-pod命令目录
+    - example    : pod用法示例
+    - lib        : 真正的pod源码库
+        - cocoapods
+            - command
+            - downloader
+            - external_sources
+            - generator
+            - installer
+            - resolver
+            - sandbox
+            - target
+            - user_interface
+        - cocoapods.rb 包含了主要module和类的文件
+    - spec       : rspec单元测试的目录
+</code></pre>
+</div>
+
+<p>以上的目录结构，主要是按照模块功能划分的，总体来看分的还是比较清晰的。</p>
+
+<p>下面简单来看看cocoapods.rb文件</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>  <span class="c1"># 用于存储target相关的信息，整合pods下target的信息</span>
+  <span class="nb">autoload</span> <span class="ss">:AggregateTarget</span><span class="p">,</span>           <span class="s1">'cocoapods/target/aggregate_target'</span>
+
+  <span class="c1"># 实现了pod下的各种命令，具体的命令可以通过pod --help来查看</span>
+  <span class="nb">autoload</span> <span class="ss">:Command</span><span class="p">,</span>                   <span class="s1">'cocoapods/command'</span>
+
+  <span class="c1"># 用于移除cocoapods</span>
+  <span class="nb">autoload</span> <span class="ss">:Deintegrator</span><span class="p">,</span>              <span class="s1">'cocoapods_deintegrate'</span>
+
+  <span class="c1"># 用于支持可执行文件执行的模块</span>
+  <span class="nb">autoload</span> <span class="ss">:Executable</span><span class="p">,</span>                <span class="s1">'cocoapods/executable'</span>
+
+  <span class="c1"># 用于初始化外部资源类</span>
+  <span class="nb">autoload</span> <span class="ss">:ExternalSources</span><span class="p">,</span>           <span class="s1">'cocoapods/external_sources'</span>
+
+  <span class="c1"># 负责根据podfile生成Pods库</span>
+  <span class="nb">autoload</span> <span class="ss">:Installer</span><span class="p">,</span>                 <span class="s1">'cocoapods/installer'</span>
+
+  <span class="c1"># 提供了cocoapods的hook机制，便于plugins的编写</span>
+  <span class="nb">autoload</span> <span class="ss">:HooksManager</span><span class="p">,</span>              <span class="s1">'cocoapods/hooks_manager'</span>
+
+  <span class="c1"># 保存target的信息，用来编译单个pod</span>
+  <span class="nb">autoload</span> <span class="ss">:PodTarget</span><span class="p">,</span>                 <span class="s1">'cocoapods/target/pod_target'</span>
+
+  <span class="c1"># pod工程</span>
+  <span class="nb">autoload</span> <span class="ss">:Project</span><span class="p">,</span>                   <span class="s1">'cocoapods/project'</span>
+
+  <span class="c1"># 根据Podfile生成target的specifications</span>
+  <span class="nb">autoload</span> <span class="ss">:Resolver</span><span class="p">,</span>                  <span class="s1">'cocoapods/resolver'</span>
+
+  <span class="c1"># 用于支持Cocoapods install的时候用的目录操作</span>
+  <span class="nb">autoload</span> <span class="ss">:Sandbox</span><span class="p">,</span>                   <span class="s1">'cocoapods/sandbox'</span>
+
+  <span class="c1"># 管理所有的源代码</span>
+  <span class="nb">autoload</span> <span class="ss">:SourcesManager</span><span class="p">,</span>            <span class="s1">'cocoapods/sources_manager'</span>
+
+  <span class="c1"># 描述pods target</span>
+  <span class="nb">autoload</span> <span class="ss">:Target</span><span class="p">,</span>                    <span class="s1">'cocoapods/target'</span>
+
+  <span class="c1"># 检查一个specification是否合法</span>
+  <span class="nb">autoload</span> <span class="ss">:Validator</span><span class="p">,</span>                 <span class="s1">'cocoapods/validator'</span>
+</code></pre>
+</div>
+<p>可见cocoapods文件其实已经将cocoapods包含的功能描述的清清楚楚了，下面我们就选几个比较重要的模块进行简单的分析。</p>
+
+<h2 id="installer">Installer</h2>
+<p>首先我们来看看，当我们执行pod install的时候，到底是干了什么.</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">def</span> <span class="nf">install!</span>
+  <span class="n">prepare</span>  <span class="c1"># 做一些准备工作</span>
+  <span class="n">resolve_dependencies</span>   <span class="c1"># 解析依赖关系</span>
+  <span class="n">download_dependencies</span>    <span class="c1"># 下载依赖库</span>
+  <span class="n">determine_dependency_product_types</span>   <span class="c1"># 查看依赖是静态库还是动态库</span>
+  <span class="n">verify_no_duplicate_framework_names</span>    <span class="c1"># 检查是否有重复framework</span>
+  <span class="n">verify_no_static_framework_transitive_dependencies</span>   <span class="c1"># 检查是否静态库有传递依赖</span>
+  <span class="n">verify_framework_usage</span> <span class="c1"># 检查framework的使用，主要跟swift相关</span>
+  <span class="n">generate_pods_project</span> <span class="c1"># 生成pods项目文件</span>
+  <span class="n">integrate_user_project</span> <span class="k">if</span> <span class="n">installation_options</span><span class="p">.</span><span class="nf">integrate_targets?</span>  <span class="c1"># 集成用户项目文件</span>
+  <span class="n">perform_post_install_actions</span> <span class="c1"># 执行install后处理</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+
+<p>我们使用cocoaPods的时候写的podfile就会在解析依赖关系的时候被使用到。其核心代码如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">def</span> <span class="nf">resolve_dependencies</span>
+  <span class="n">analyzer</span> <span class="o">=</span> <span class="n">create_analyzer</span> <span class="c1"># 创建分析器</span>
+
+  <span class="n">plugin_sources</span> <span class="o">=</span> <span class="n">run_source_provider_hooks</span>
+  <span class="n">analyzer</span><span class="p">.</span><span class="nf">sources</span><span class="p">.</span><span class="nf">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">*</span><span class="n">plugin_sources</span><span class="p">)</span>
+
+  <span class="no">UI</span><span class="p">.</span><span class="nf">section</span> <span class="s1">'Updating local specs repositories'</span> <span class="k">do</span>
+    <span class="n">analyzer</span><span class="p">.</span><span class="nf">update_repositories</span> <span class="c1"># 这里是依赖解析的核心功能，用于下载和更新相关的依赖库</span>
+  <span class="k">end</span> <span class="k">unless</span> <span class="n">config</span><span class="p">.</span><span class="nf">skip_repo_update?</span>
+
+  <span class="no">UI</span><span class="p">.</span><span class="nf">section</span> <span class="s1">'Analyzing dependencies'</span> <span class="k">do</span>
+    <span class="n">analyze</span><span class="p">(</span><span class="n">analyzer</span><span class="p">)</span>
+    <span class="n">validate_build_configurations</span>
+    <span class="n">clean_sandbox</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+
+<p>接下来看看如何将下载下来的依赖库整合进目标工程。也就是generate_pods_project函数</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">def</span> <span class="nf">generate_pods_project</span>
+  <span class="no">UI</span><span class="p">.</span><span class="nf">section</span> <span class="s1">'Generating Pods project'</span> <span class="k">do</span>
+    <span class="n">prepare_pods_project</span>        <span class="c1"># 做一些准备工作,比如新建project、设置platform以及deployment_target等</span>
+    <span class="n">install_file_references</span>  <span class="c1"># 整合源文件和资源到Pods项目中</span>
+    <span class="n">install_libraries</span> <span class="c1"># 构建pod_targets和aggregate_targets</span>
+    <span class="n">set_target_dependencies</span> <span class="c1"># 增加每个aggregate目标的目标依赖，并将这个目标link在一起</span>
+    <span class="n">run_podfile_post_install_hooks</span> <span class="c1"># 执行hooks</span>
+    <span class="n">write_pod_project</span> <span class="c1"># 生成pod project文件</span>
+    <span class="n">share_development_pod_schemes</span>
+    <span class="n">write_lockfiles</span> <span class="c1"># 更新Podfile和PodLockfile</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+ <span class="c1"># FileReferencesInstaller</span>
+<span class="k">def</span> <span class="nf">install!</span>
+  <span class="n">refresh_file_accessors</span>     <span class="c1"># 从文件系统中读取文件</span>
+  <span class="n">add_source_files_references</span> <span class="c1"># 将源文件加到Pods项目中</span>
+  <span class="n">add_frameworks_bundles</span> <span class="c1"># 将framework加到Pods项目中</span>
+  <span class="n">add_vendored_libraries</span> <span class="c1"># 将库加到Pods项目中</span>
+  <span class="n">add_resources</span> <span class="c1"># 将资源加到Pods项目中</span>
+  <span class="n">link_headers</span> <span class="c1"># 创建头文件的链接</span>
+<span class="k">end</span>
+
+</code></pre>
+</div>
+
+<h2 id="command">Command</h2>
+<p>pod提供了一系列命令行，供用户使用。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>Usage:
+
+    <span class="nv">$ </span>pod COMMAND
+
+      CocoaPods, the Cocoa library package manager.
+
+Commands:
+
+    + cache      Manipulate the CocoaPods cache
+    + init       Generate a Podfile <span class="k">for </span>the current directory.
+    + install    Install project dependencies to Podfile.lock versions
+    + ipc        Inter-process communication
+    + lib        Develop pods
+    + list       List pods
+    + outdated   Show outdated project dependencies
+    + plugins    Show available CocoaPods plugins
+    + repo       Manage spec-repositories
+    + search     Search <span class="k">for </span>pods.
+    + setup      Setup the CocoaPods environment
+    + spec       Manage pod specs
+    + trunk      Interact with the CocoaPods API <span class="o">(</span>e.g. publishing new specs<span class="o">)</span>
+    + try        Try a Pod!
+    + update     Update outdated project dependencies and create new Podfile.lock
+
+Options:
+
+    --silent     Show nothing
+    --version    Show the version of the tool
+    --verbose    Show more debugging information
+    --no-ansi    Show output without ANSI codes
+    --help       Show <span class="nb">help </span>banner of specified <span class="nb">command</span>
+</code></pre>
+</div>
+<p>这些命令绝大部分都在cocoapods/command目录下。其实现基本是一样的，下面简单的拿pod install 来作为示例解析。执行pod install –help可以看到如下输出</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>Usage:
+
+    <span class="nv">$ </span>pod install
+
+      Downloads all dependencies defined <span class="k">in</span> <span class="sb">`</span>Podfile<span class="sb">`</span> and creates an Xcode Pods
+      library project <span class="k">in</span> <span class="sb">`</span>./Pods<span class="sb">`</span>.
+
+      The Xcode project file should be specified <span class="k">in </span>your <span class="sb">`</span>Podfile<span class="sb">`</span> like this:
+
+          xcodeproj <span class="s1">'path/to/XcodeProject'</span>
+
+      If no xcodeproj is specified, <span class="k">then </span>a search <span class="k">for </span>an Xcode project will be made.
+      If more than one Xcode project is found, the <span class="nb">command </span>will raise an error.
+
+      This will configure the project to reference the Pods static library, add a
+      build configuration file, and add a post build script to copy Pod resources.
+
+Options:
+
+    --project-directory<span class="o">=</span>/project/dir/   The path to the root of the project directory
+    --no-clean                          Leave SCM <span class="nb">dirs </span>like <span class="sb">`</span>.git<span class="sb">`</span> and <span class="sb">`</span>.svn<span class="sb">`</span> intact
+                                        after downloading
+    --no-integrate                      Skip integration of the Pods libraries <span class="k">in </span>the
+                                        Xcode project<span class="o">(</span>s<span class="o">)</span>
+    --no-repo-update                    Skip running <span class="sb">`</span>pod repo update<span class="sb">`</span> before install
+    --silent                            Show nothing
+    --verbose                           Show more debugging information
+    --no-ansi                           Show output without ANSI codes
+    --help                              Show <span class="nb">help </span>banner of specified <span class="nb">command</span>
+</code></pre>
+</div>
+<p>cocoapods中所有的command都是继承自<a href="https://github.com/CocoaPods/CLAide">CLAide::Command</a>, CLAide是是ruby下的命令行工具，其提供了参数解析和命令执行功能。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="k">module</span> <span class="nn">Project</span>
+  <span class="k">module</span> <span class="nn">Options</span>
+    <span class="k">def</span> <span class="nf">options</span>
+      <span class="p">[</span>
+        <span class="p">[</span><span class="s1">'--no-repo-update'</span><span class="p">,</span> <span class="s1">'Skip running `pod repo update` before install'</span><span class="p">],</span>
+      <span class="p">].</span><span class="nf">concat</span><span class="p">(</span><span class="k">super</span><span class="p">)</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nc">self</span><span class="o">.</span><span class="nf">included</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+    <span class="n">base</span><span class="p">.</span><span class="nf">extend</span> <span class="no">Options</span>
+  <span class="k">end</span>
+
+  <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="n">argv</span><span class="p">)</span>
+    <span class="n">config</span><span class="p">.</span><span class="nf">skip_repo_update</span> <span class="o">=</span> <span class="o">!</span><span class="n">argv</span><span class="p">.</span><span class="nf">flag?</span><span class="p">(</span><span class="s1">'repo-update'</span><span class="p">,</span> <span class="o">!</span><span class="n">config</span><span class="p">.</span><span class="nf">skip_repo_update</span><span class="p">)</span>
+    <span class="k">super</span>
+  <span class="k">end</span>
+
+  <span class="c1"># Runs the installer.</span>
+  <span class="c1">#</span>
+  <span class="c1"># @param  [Hash, Boolean, nil] update</span>
+  <span class="c1">#         Pods that have been requested to be updated or true if all Pods</span>
+  <span class="c1">#         should be updated</span>
+  <span class="c1">#</span>
+  <span class="c1"># @return [void]</span>
+  <span class="c1">#</span>
+  <span class="k">def</span> <span class="nf">run_install_with_update</span><span class="p">(</span><span class="n">update</span><span class="p">)</span>
+    <span class="n">installer</span> <span class="o">=</span> <span class="no">Installer</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="nf">sandbox</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="nf">podfile</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="nf">lockfile</span><span class="p">)</span>
+    <span class="n">installer</span><span class="p">.</span><span class="nf">update</span> <span class="o">=</span> <span class="n">update</span>
+    <span class="n">installer</span><span class="p">.</span><span class="nf">install!</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+
+<span class="k">class</span> <span class="nc">Install</span> <span class="o">&lt;</span> <span class="no">Command</span>
+  <span class="kp">include</span> <span class="no">Project</span>
+
+  <span class="nb">self</span><span class="p">.</span><span class="nf">summary</span> <span class="o">=</span> <span class="s1">'Install project dependencies to Podfile.lock versions'</span>
+
+  <span class="nb">self</span><span class="p">.</span><span class="nf">description</span> <span class="o">=</span> <span class="o">&lt;&lt;-</span><span class="no">DESC</span><span class="sh">
+    Downloads all dependencies defined in `Podfile` and creates an Xcode
+    Pods library project in `./Pods`.
+
+    The Xcode project file should be specified in your `Podfile` like this:
+
+        xcodeproj 'path/to/XcodeProject'
+
+    If no xcodeproj is specified, then a search for an Xcode project will
+    be made. If more than one Xcode project is found, the command will
+    raise an error.
+
+    This will configure the project to reference the Pods static library,
+    add a build configuration file, and add a post build script to copy
+    Pod resources.
+</span><span class="no">  DESC</span>
+
+  <span class="k">def</span> <span class="nf">run</span>
+    <span class="n">verify_podfile_exists!</span>
+    <span class="n">run_install_with_update</span><span class="p">(</span><span class="kp">false</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="k">def</span> <span class="nf">run_install_with_update</span><span class="p">(</span><span class="n">update</span><span class="p">)</span>
+  <span class="n">installer</span> <span class="o">=</span> <span class="no">Installer</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="nf">sandbox</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="nf">podfile</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="nf">lockfile</span><span class="p">)</span>
+  <span class="n">installer</span><span class="p">.</span><span class="nf">update</span> <span class="o">=</span> <span class="n">update</span>
+  <span class="n">installer</span><span class="p">.</span><span class="nf">install!</span>
+<span class="k">end</span>
+</code></pre>
+</div>
+
+<p>可以发现self.summary定义提供pod –help的简要描述，而self.description则定义了pod install –help的详细定义，options则是由self.options决定的。这里就不再详述了。当执行pod install的时候，实际执行的函数是run，即更新依赖并安装。</p>
+
+<h1 id="section">总结</h1>
+<p>上述分析只是简单的分析了CocoaPods的代码结构，熟悉CocoaPods的工作原理，熟悉ruby的代码规范，为以后解析CocoaPods代码细节提供基础，仅此而已。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-01-24 00:00:00 +0800" data-title="CocoaPods详解" data-url="/ios/cocoapods/2016/01/24/CocoaPods%E8%AF%A6%E8%A7%A3.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

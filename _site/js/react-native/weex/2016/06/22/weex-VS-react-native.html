@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>weex VS react native</title>
+  <meta name="description" content="weex的思想是多个平台，只写一套代码，而react-native的思想是多个平台可以写多套代码，但其使用的是同一套语言框架。weex的目标在于抹平各个平台的差异性，从而简化应用开发。而react-native承认了各个平台之间的差异，退而求其次，在语言和框架层面对平台进行抽象，从方法论的角度去解决多平台开发的问题。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/js/react-native/weex/2016/06/22/weex-VS-react-native.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">weex VS react native</h1>
+    <p class="post-meta">Jun 22, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>weex的思想是多个平台，只写一套代码，而react-native的思想是多个平台可以写多套代码，但其使用的是同一套语言框架。
+weex的目标在于抹平各个平台的差异性，从而简化应用开发。而react-native承认了各个平台之间的差异，退而求其次，在语言和框架层面对平台进行抽象，从方法论的角度去解决多平台开发的问题。</p>
+
+<p>进一步浏览weex和react-native的代码之后，可以得出如下的公式。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>weex = Vue.js + H5/Native
+react-native = React + Native
+</code></pre>
+</div>
+
+<p>总的来说，其差异性如下表格所示。</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>dimension</th>
+      <th>weex</th>
+      <th>react-native</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>js framework</td>
+      <td>Vue.js</td>
+      <td>React</td>
+    </tr>
+    <tr>
+      <td>principle</td>
+      <td>write once, run anywhere</td>
+      <td>learn once, write anywhere</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>个人观点，weex和react-native最核心的区别就是这两个。然而就只这两个维度的同步，导致了weex和react-native完全不一样的发展方向。</p>
+
+<h2 id="vuejs-vs-react">Vue.js vs React</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>维度</th>
+      <th>Vue.js</th>
+      <th>React</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>定位</td>
+      <td>UI框架</td>
+      <td>UI框架</td>
+    </tr>
+    <tr>
+      <td>目标平台</td>
+      <td>Web</td>
+      <td>多平台</td>
+    </tr>
+    <tr>
+      <td>架构</td>
+      <td>MVVM</td>
+      <td>React</td>
+    </tr>
+    <tr>
+      <td>数据流</td>
+      <td>数据绑定</td>
+      <td>单向数据流动</td>
+    </tr>
+    <tr>
+      <td>组件系统</td>
+      <td>有</td>
+      <td>有</td>
+    </tr>
+    <tr>
+      <td>响应式</td>
+      <td>是</td>
+      <td>否</td>
+    </tr>
+    <tr>
+      <td>开发语言</td>
+      <td>html/css/js</td>
+      <td>all in js</td>
+    </tr>
+    <tr>
+      <td>flexbox</td>
+      <td>支持</td>
+      <td>支持</td>
+    </tr>
+    <tr>
+      <td>外围框架</td>
+      <td>能和其他js框架整合使用</td>
+      <td>能和其他js框架整合使用</td>
+    </tr>
+    <tr>
+      <td>渲染机制</td>
+      <td>real DOM</td>
+      <td>Virtual DOM</td>
+    </tr>
+    <tr>
+      <td>动画</td>
+      <td>支持</td>
+      <td>支持</td>
+    </tr>
+    <tr>
+      <td>级别</td>
+      <td>轻量级</td>
+      <td>重量级</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="weex-vs-react-native">weex vs react-native</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>维度</th>
+      <th>weex</th>
+      <th>react-native</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>思想</td>
+      <td>write once, run anywhere</td>
+      <td>learn once, write anywhere</td>
+    </tr>
+    <tr>
+      <td>试用场景</td>
+      <td>简单明了</td>
+      <td>难易双修</td>
+    </tr>
+    <tr>
+      <td>扩展</td>
+      <td>为了保证各平台的一致性，一次扩展得在各个平台都实现</td>
+      <td>不同平台可自由扩展</td>
+    </tr>
+    <tr>
+      <td>社区</td>
+      <td>内测开源</td>
+      <td>15年3月开源，社区非常活跃</td>
+    </tr>
+    <tr>
+      <td>支持</td>
+      <td>alibaba支持</td>
+      <td>facebook支持</td>
+    </tr>
+    <tr>
+      <td>组件丰富程度</td>
+      <td>基本只有自带的10余种</td>
+      <td>除了自带的，还有js.coach上社区贡献的，还是比较丰富的</td>
+    </tr>
+    <tr>
+      <td>上手难度</td>
+      <td>容易</td>
+      <td>困难</td>
+    </tr>
+    <tr>
+      <td>调式</td>
+      <td>暂时log调试</td>
+      <td>有专门的调试工具，chrome调试，较为完善</td>
+    </tr>
+    <tr>
+      <td>IDE</td>
+      <td>文本编辑器</td>
+      <td>Nuclide/文本编辑器</td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="vuejs">Vue.js</h1>
+<p>Vue.js虽然是Evan You个人开发的开源项目，其社区活跃度以及代码质量还是值得一提的。在写此文章之际，Vue.js在Github上的Star达到了21099，Fork达到了2186。虽然相比于react的Star数44108，Fork数7610还有一定距离，但考虑到作为个人开发者能有如此多的人关注参与，该框架的优秀程度恐怕不会低于React。</p>
+
+<p>Vue.js的文档资料非常齐全，而且其本身的设计非常简洁，因此绝大部分开发者只要花费少量的时间就能快速上手Vue.js。其中<a href="http://blog.evanyou.me/2015/10/25/vuejs-re-introduction/">VUE.JS: A (RE)INTRODUCTION</a>是 Vue.js的作者Evan You对Vue.js的介绍，非常值得一看。我想这可能也是weex团队选择Vue.js入手的原因之一吧。对Vue.js有兴趣的同学可以移步<a href="https://vuejs.org/guide/">Vue.js Guide</a>自行学习。</p>
+
+<p>Vue.js用来构建交互式web界面的，其主要的关注点和React是一样的，都是立足于View层。
+Vue.js最核心的部分是两个Reactive Data Binding以及Composable View Components。还值得特别关注的是，其保留了html、css、js分离的写法，使得现有的前端开发者在开发的时候能保持原有的习惯。</p>
+
+<h2 id="section">响应式数据绑定</h2>
+<p>Vue.js将界面开发分成了三个部分，分别是View、ViewModel和Model，这种划分在客户端开发看来是非常合理的，也经过了实际的检验。以HelloWorld为例来说明，示例来源<a href="https://vuejs.org/guide/">Vue.js Guide</a>。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c">&lt;!--</span> <span class="k">this</span> <span class="nx">is</span> <span class="nx">our</span> <span class="nx">View</span> <span class="o">--&gt;</span>
+<span class="o">&lt;</span><span class="nx">div</span> <span class="nx">id</span><span class="o">=</span><span class="s2">"example-1"</span><span class="o">&gt;</span>
+  <span class="nx">Hello</span> <span class="o">!</span>
+<span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span>
+<span class="c">&lt;!--</span> <span class="k">this</span> <span class="nx">is</span> <span class="nx">our</span> <span class="nx">Model</span> <span class="o">--&gt;</span>
+<span class="kd">var</span> <span class="nx">exampleData</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">name</span><span class="p">:</span> <span class="s1">'Vue.js'</span>
+<span class="p">}</span>
+
+<span class="c">&lt;!--</span> <span class="k">this</span> <span class="nx">is</span> <span class="nx">our</span> <span class="nx">ViewModel</span> <span class="o">--&gt;</span>
+<span class="kd">var</span> <span class="nx">exampleVM</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Vue</span><span class="p">({</span>
+  <span class="na">el</span><span class="p">:</span> <span class="s1">'#example-1'</span><span class="p">,</span>
+  <span class="na">data</span><span class="p">:</span> <span class="nx">exampleData</span>
+<span class="p">})</span>
+</code></pre>
+</div>
+<p>这就是经典的MVVM模式，Vue.js通过极简的API，将数据和视图绑定在一起，也就是所谓的Data-Binding。
+这样，当数据变化的时候，界面就能变化，实现了数据驱动的响应式变成。</p>
+
+<h2 id="section-1">组件化</h2>
+<p>当我们在写网页的时候，本质上就是构造DOM树，DOM树则是由div、span等元素组成的。div、span这样的元素是构建大型应用的基础。其实Vue.js或者其他的UI框架基本也是一样的，他们都会提供自己的组件系统。这些组件就类似div元素，一般具有一下特征：</p>
+
+<ul>
+  <li>小巧精致</li>
+  <li>能重用</li>
+  <li>自包含，高内聚</li>
+</ul>
+
+<p>当我们使用Vue.js开发应用的时候，就是搭建特定的组件树。这些组件可以是Vue.js定义的，也可以是开发者自己定义的，这非常重要。</p>
+
+<p>看个组件化的例子。
+```js
+// example组件定义
+var Example = Vue.extend({
+  template: ‘&lt;div&gt;&lt;/div&gt;’,
+  data: function () {
+    return {
+      message: ‘Hello Vue.js!’
+    }
+  }
+})</p>
+
+<p>// register it with the tag <example>
+Vue.component('example', Example)</example></p>
+
+<p>// example组件使用</p>
+<example></example>
+<div class="highlighter-rouge"><pre class="highlight"><code>
+### 组件间数据传递
+Vue.js的组件都是有自己独立的scope的，因此子组件是不能直接访问到父组件的数据的。数据一般都是通过props来传递的，示例说明。
+
+```js
+// define component
+Vue.component('child', {
+  // declare the props
+  props: ['msg'],
+  // the prop can be used inside templates, and will also
+  // be set as `this.msg`
+  template: '&lt;span&gt;&lt;/span&gt;'
+})
+
+// usage
+&lt;child msg="hello!"&gt;&lt;/child&gt;
+</code></pre>
+</div>
+
+<p>上述方式只能实现组件树从上往下传递数据，在Vue.js中，会有大量的场景需要子组件向父组件传输数据，甚至兄弟组件之间传递数据，一般这种时候就需要使用以下几种能力。</p>
+
+<ul>
+  <li>子组件获取父组件的能力（this.$parent）</li>
+  <li>自定义事件的能力 ($on$emit$dispatch$broadcast)</li>
+</ul>
+
+<p>想要了解详情，请移步<a href="http://vuejs.org/guide/components.html#Parent-Child-Communication">Parent-Child Communication</a>。</p>
+
+<h2 id="section-2">样式、逻辑和界面的分离</h2>
+<p>前端开发经过这么多年的发展，html、css和js的分开编写应当是顺理成章的，Vue.js没有打破这个规则，通过 <strong>style</strong> 、 <strong>template</strong> 、 <strong>script</strong> 将样式、视图和数据逻辑进行了分离。详见下面示例，来源于<a href="http://blog.evanyou.me/2015/10/25/vuejs-re-introduction/">VUE.JS: A (RE)INTRODUCTION</a>。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c">&lt;!--</span> <span class="nx">css</span> <span class="o">--&gt;</span>
+<span class="o">&lt;</span><span class="nx">style</span><span class="o">&gt;</span>
+<span class="p">.</span><span class="nx">message</span> <span class="p">{</span>
+  <span class="nl">color</span><span class="p">:</span> <span class="nx">red</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="o">&lt;</span><span class="sr">/style</span><span class="err">&gt;
+</span>
+<span class="c">&lt;!--</span> <span class="nx">template</span> <span class="o">--&gt;</span>
+<span class="o">&lt;</span><span class="nx">template</span><span class="o">&gt;</span>
+  <span class="o">&lt;</span><span class="nx">div</span> <span class="kr">class</span><span class="o">=</span><span class="s2">"message"</span><span class="o">&gt;&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span><span class="o">&lt;</span><span class="sr">/template</span><span class="err">&gt;
+</span>
+<span class="c">&lt;!--</span> <span class="nx">js</span> <span class="o">--&gt;</span>
+<span class="o">&lt;</span><span class="nx">script</span><span class="o">&gt;</span>
+<span class="kr">export</span> <span class="k">default</span> <span class="p">{</span>
+  <span class="na">props</span><span class="p">:</span> <span class="p">[</span><span class="s1">'message'</span><span class="p">],</span>
+  <span class="nx">created</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">'MyComponent created!'</span><span class="p">)</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+<span class="o">&lt;</span><span class="sr">/script</span><span class="err">&gt;
+</span></code></pre>
+</div>
+
+<h1 id="react">React</h1>
+<p>React可能是现在前端开发中最炙手可热的UI框架了。在React的<a href="https://facebook.github.io/react/">首页</a>最明显的位置上展示者关于React的最核心的三个思想，它们分别是：</p>
+
+<ul>
+  <li>Declarative(声明式)</li>
+  <li>Component-Based（组件化）</li>
+  <li>Learn Once, Write AnyWhere（一学多写）</li>
+</ul>
+
+<h2 id="section-3">声明式</h2>
+<p>React和Vue.js的组件的使用都是声明式的，声明式的编写方式会比命令式的编写更加的直观。关于声明式和命令式的区别，可以参考<a href="https://en.wikipedia.org/wiki/Declarative_programming">Declarative programming</a>和<a href="https://en.wikipedia.org/wiki/Imperative_programming">Imperative programming</a>，这里就不加详描了。</p>
+
+<h2 id="section-4">组件化</h2>
+<p>诚然React和Vue.js在编写大型程序的时候都是构建一颗组件树，但React和Vue.js的组件却有着不小的差异。先来看一个React组件的示例（来源React官网）。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">HelloMessage</span> <span class="o">=</span> <span class="nx">React</span><span class="p">.</span><span class="nx">createClass</span><span class="p">({</span>
+  <span class="na">render</span><span class="p">:</span> <span class="kd">function</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="o">&lt;</span><span class="nx">div</span> <span class="nx">style</span><span class="o">=</span><span class="p">{</span><span class="nx">divStyle</span><span class="p">}</span><span class="o">&gt;</span><span class="nx">Hello</span> <span class="p">{</span><span class="k">this</span><span class="p">.</span><span class="nx">props</span><span class="p">.</span><span class="nx">name</span><span class="p">}</span><span class="o">&lt;</span><span class="sr">/div&gt;</span><span class="err">;
+</span>  <span class="p">}</span>
+
+  <span class="c1">// style</span>
+  <span class="kd">var</span> <span class="nx">divStyle</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">color</span><span class="p">:</span> <span class="s1">'white'</span><span class="p">,</span>
+    <span class="na">backgroundImage</span><span class="p">:</span> <span class="s1">'url('</span> <span class="o">+</span> <span class="nx">imgUrl</span> <span class="o">+</span> <span class="s1">')'</span><span class="p">,</span>
+    <span class="na">WebkitTransition</span><span class="p">:</span> <span class="s1">'all'</span><span class="p">,</span> <span class="c1">// note the capital 'W' here</span>
+    <span class="na">msTransition</span><span class="p">:</span> <span class="s1">'all'</span> <span class="c1">// 'ms' is the only lowercase vendor prefix</span>
+  <span class="p">};</span>
+<span class="p">});</span>
+
+<span class="nx">ReactDOM</span><span class="p">.</span><span class="nx">render</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">HelloMessage</span> <span class="nx">name</span><span class="o">=</span><span class="s2">"John"</span> <span class="o">/&gt;</span><span class="p">,</span> <span class="nx">mountNode</span><span class="p">);</span>
+</code></pre>
+</div>
+<p>在React中，一切都是js，视图、逻辑和样式都是通过js来写的。通过js来统一颠覆了html、css和js分离的原则，当然是褒贬不一了。在Vue.js中，分离带来了清晰度，逻辑、视图、样式和数据可以分别处理，但在React中，一切都需要重新组织，甚至需要新的配套框架和设计模式，比如新的语言JSX就是用来简化js带来的麻烦的。但all in js让很多事情变得简单，js的快速发展也让React脱离了css和html发展限制，可以实现更多的可能性，优化、扩展以及其他很多事情，就只要单纯考虑js就可以了，而不必收到css和html的限制。</p>
+
+<p>当然，这样带来的后果就是学习曲线的陡然增加，React甚至带来了新的JSX语法，同时考虑到React全新的React思想，开发者想要开发生产环境的app，尤其是在将现有app用React重写的时候，成本是要比Vue.js高出不止一个数量级的。</p>
+
+<h3 id="section-5">组件间数据传递</h3>
+<p>React推崇的是单向数据流动，也就是说，数据最好是从组件树的顶端往叶子节点流动，尽量少的出现反向流动的情况。
+用另外一种方式来说，React希望实现的immutable data，数据的不变性。只读的数据能给我们带来非常多的好处，并发、简化逻辑、数据统一管理等等。</p>
+
+<p>React提供了props和state两种数据类型，props是实现数据从父组件往子组件传递的机制，而state则是提供了一种机制来实现组件的自更新，facebook是建议尽量少用该特性，因为其违反了immutable data和单向数据流动的设定。</p>
+
+<p>因为React的数据设定让其数据管理成为一个问题，业界出现了一些解决方案，其中最为著名的应该就是redux/flux了，有兴趣的同学可以上github搜搜，都是开源的。</p>
+
+<h2 id="section-6">一学多写</h2>
+<p>React背后是强大的facebook在开发维护，其目的不是要简单的创建一种新的js的UI框架，相反，其想要让React成为平台无感知的UI开发思想。什么意思呢？就是本节要说的learn once，write anywhere。facebook认为每个平台不可能完全一样，Web、Android、iOS、Windows Phone甚至Xbox，以及未来会出现的各种平台，他们都会有自己的发展理念和发展路劲，不可能做到完全一样，但不管平台如何变化，基于平台之上，创建Virtual DOM，React通过控制Virtual DOM来实现界面变化。
+也就是说Virtual DOM相当于是一个中间层，隔离平台的差异，从而实现统一的开发方式。</p>
+
+<p>不敢说这样的想法一定能成功，但就现在的发展势头来看，机会还是非常大的。尤其对于开发者来说极具吸引力，如果这一想法成为现实，以后React就可能像DOM一样成为业界统一的标准。那对于iOS开发者来说，在Android上面开发会跟在iOS上开发一样，不需要学习全新的Java语言，Android系统，更不要说各种Java特有的艰深复杂的工具了。</p>
+
+<h1 id="native">Native</h1>
+
+<p>个人感觉weex和react-native最大的不同是在Vue.js和React层面。这一点在react-native的命名上就非常容易看出来。在react-native刚出来的时候，其和React的关系是react-native依赖React。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>"dependencies": {
+  "react": "~14.0.0"
+}
+</code></pre>
+</div>
+
+<p>而现在react-native和react则是同级别的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>"peerDependencies": {
+  "react": "~15.1.0"
+}
+</code></pre>
+</div>
+<p>react-native中最重要的文件名字也是Library，主要提供了一系列Native的能力。</p>
+
+<p>查看weex的源码，native部分的作用几乎是一样的，主要就是提供了一些列Native的组件，以及其他的一些能力。</p>
+
+<p>这也就是为什么本文将两者的Native合为一谈的原因，他们的本质是差不多的。</p>
+
+<ul>
+  <li>提供了js和native交互的桥梁Bridge</li>
+  <li>提供了一系列组件</li>
+  <li>提供了flexbox布局支持</li>
+  <li>提供了事件支持</li>
+  <li>……</li>
+</ul>
+
+<p>当然，因为weex和react-native的设计思想的差异，在native部分也存在差异，但我觉得这是因为js需要导致的，仅就native而言，两者并没有特别大的不一样。</p>
+
+<p>也许在不远的将来，native部分会出来一个比较核心的框架，抽象出在构建App时js和native交互所需要的基本能力，同时提供扩展方式，让各种类似react-native\weex这样的框架可以专注于js层的设计。也许react-native就走在这条路上，谁知道呢？</p>
+
+<h1 id="section-7">展望</h1>
+<p>动态化的世界越来越精彩，对于weex和react-native的了解才刚刚入门，需要更多实操经验来深刻体会到两者的博大精深。weex和react-native各有千秋，开源的魅力也正是在此。</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-06-22 00:00:00 +0800" data-title="weex VS react native" data-url="/js/react-native/weex/2016/06/22/weex-VS-react-native.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

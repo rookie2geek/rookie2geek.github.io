@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>GCD技术详解</title>
+  <meta name="description" content="GCD技术详解">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/gcd/2015/05/28/gcd.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">GCD技术详解</h1>
+    <p class="post-meta">May 28, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>GCD技术详解</p>
+
+<h1 id="section">背景介绍</h1>
+
+<h2 id="section-1">并发简介</h2>
+
+<p>讲GCD就必须讲并发，因为GCD就是为并发而生的。并发就是同一时间执行多个任务。可以是单核CPU上通过时间分片的方式实现，也可以是多核CPU上真正的并发执行来实现。</p>
+
+<p>iOS和OS X的并发编程API从低级到高级分别是pthread，NSThread，GCD，NSOperation。我们在选用的时候应该从高到低选用，保证代码并发模型的简单。<strong>灵活性导致复杂度和责任混乱</strong>,越低级的代码使用起来越灵活，但相应的对使用者的要求也越高。</p>
+
+<h2 id="gcd">GCD简介</h2>
+
+<p>GCD全称Grand Central Dispatch，由语言特性，运行时库以及系统级别的增强等组成，其是在OS X 10.6以及iOS 4引入的。通过GCD能大大的提升多核iOS和OS X设备上并发代码的执行效率。</p>
+
+<p>使用GCD之后，就不需要和threads直接打交道了，只需要在队列中添加block就好了，GCD管理了线程池，由其根据系统资源来决定使用哪个特定线程。这样的好处在于，线程现在由中央控制，不会出现太多线程的问题，而且线程的使用也可以更有效。</p>
+
+<p>这种方式改变了并发编程思想，以前，我们需要面向线程来编程，而现在我们则面向队列来编程。面向队列编程只需要关注任务的设计，而不用再考虑线程的创建和管理，明显要简单的多。</p>
+
+<h2 id="gcd-1">为什么要有GCD</h2>
+
+<p>随着多核CPU的出现，如何更好的使用多核CPU成为最主要的问题。传统的方式是创建多个线程，这种方式最大的问题是线程数不能根据核的数目的多少进行有效的伸缩。计算当前可用的核的数目对于使用thread的应用程序来说是非常困难的事情。</p>
+
+<p>iOS和OS X提供了足够简单的解决方案：GCD和Operation Queues。其解决思路主要是<strong>将线程管理的代码移到系统级别，使用者只需要定义任务并将他们放到合适的队列</strong>。</p>
+
+<p><br /></p>
+
+<h1 id="gcd-2">GCD组成</h1>
+<p>GCD是苹果的并发解决方案，可以从以下四个方面对GCD进行详细的阐述，其API也主要是这四个方面的，参考 <a href="https://developer.apple.com/library/mac/documentation/Performance/Reference/GCD_libdispatch_Ref/index.html">Grand Central Dispatch (GCD) Reference</a>。</p>
+
+<h2 id="dispatch-queues">Dispatch Queues</h2>
+<p>GCD提供了<strong>3</strong>种不同的队列:</p>
+
+<ul>
+  <li>主队列
+    <ul>
+      <li>全局可获取的串行队列，运行在主线程（Thread 0）</li>
+    </ul>
+  </li>
+  <li>并发队列
+    <ul>
+      <li>任务按照他们被加入队列的顺序执行</li>
+      <li>不用等待前面的任务完成，可以尽可能多的开始任务执行</li>
+      <li>GCD提供了4中全局并发队列</li>
+      <li>用户自定义并发队列</li>
+    </ul>
+  </li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">//</span> <span class="err">GCD提供的</span><span class="m">4</span><span class="err">中全局并发队列</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_PRIORITY_HIGH</span>        <span class="m">2</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_PRIORITY_DEFAULT</span>     <span class="m">0</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_PRIORITY_LOW</span>         <span class="p">(</span><span class="m">-2</span><span class="p">)</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_PRIORITY_BACKGROUND</span>  <span class="nf">INT16_MIN</span>
+
+<span class="nf">dispatch_queue_t</span> <span class="nf">aQueue</span> <span class="nf">=</span> <span class="nv">dispatch_get_global_queue</span><span class="p">(</span><span class="nc">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="nf">,</span> <span class="m">0</span><span class="p">);</span></code></pre></figure>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">//</span> <span class="err">用户自定义并发队列</span>
+<span class="err">//</span> <span class="nc">OS</span> <span class="nf">X</span> <span class="nf">v10</span><span class="p">.</span><span class="m">7</span> <span class="nf">and</span> <span class="nf">later</span> <span class="nf">or</span> <span class="nf">iOS</span> <span class="m">4.3</span> <span class="nf">and</span> <span class="nf">later</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_SERIAL</span> 
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_CONCURRENT</span>
+	
+<span class="nf">dispatch_queue_t</span> <span class="nf">queue</span><span class="p">;</span>
+<span class="nf">queue</span> <span class="nf">=</span> <span class="nv">dispatch_queue_create</span><span class="p">(</span><span class="c">"com.example.MyQueue"</span><span class="err">,</span> <span class="nc">DISPATCH_QUEUE_CONCURRENT</span><span class="p">);</span></code></pre></figure>
+
+<ul>
+  <li>串行队列
+    <ul>
+      <li>任务按照他们被加入队列的顺序执行</li>
+      <li>每次只能执行一个任务，只有上一个任务完成了，下一个任务才能开始</li>
+    </ul>
+  </li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">//</span> <span class="err">用户自定义串行队列</span>
+<span class="err">//</span> <span class="nc">OS</span> <span class="nf">X</span> <span class="nf">v10</span><span class="p">.</span><span class="m">7</span> <span class="nf">before</span> <span class="nf">or</span> <span class="nf">iOS</span> <span class="m">4.3</span> <span class="nf">before</span>
+<span class="nf">dispatch_queue_t</span> <span class="nf">queue</span><span class="p">;</span>
+<span class="nf">queue</span> <span class="nf">=</span> <span class="nv">dispatch_queue_create</span><span class="p">(</span><span class="c">"com.example.MyQueue"</span><span class="err">,</span> <span class="nc">NULL</span><span class="p">);</span></code></pre></figure>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">//</span> <span class="err">用户自定义串行队列</span>
+<span class="err">//</span> <span class="nc">OS</span> <span class="nf">X</span> <span class="nf">v10</span><span class="p">.</span><span class="m">7</span> <span class="nf">and</span> <span class="nf">later</span> <span class="nf">or</span> <span class="nf">iOS</span> <span class="m">4.3</span> <span class="nf">and</span> <span class="nf">later</span>
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_SERIAL</span> 
+ <span class="ss">#define</span> <span class="nf">DISPATCH_QUEUE_CONCURRENT</span>
+
+<span class="nf">dispatch_queue_t</span> <span class="nf">queue</span><span class="p">;</span>
+<span class="nf">queue</span> <span class="nf">=</span> <span class="nv">dispatch_queue_create</span><span class="p">(</span><span class="c">"com.example.MyQueue"</span><span class="err">,</span> <span class="nc">DISPATCH_QUEUE_SERIAL</span><span class="p">);</span></code></pre></figure>
+
+<h2 id="dispatch-groups">Dispatch groups</h2>
+<p>dispatch groups提供了一种同步机制，可以实现某个任务的执行依赖于其他任务的完成。</p>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="nv">dispatch_queue_t</span> <span class="nf">queue</span> <span class="nf">=</span> <span class="nv">dispatch_get_global_queue</span><span class="p">(</span><span class="nc">DISPATCH_QUEUE_PRIORITY_DEFAULT</span><span class="nf">,</span> <span class="m">0</span><span class="p">);</span>
+<span class="nf">dispatch_group_t</span> <span class="nf">group</span> <span class="nf">=</span> <span class="nv">dispatch_group_create</span><span class="p">();</span>
+
+<span class="nf">//</span> <span class="nv">add</span> <span class="nf">a</span> <span class="nf">task</span> <span class="nf">to</span> <span class="nf">group</span>
+<span class="nf">dispatch_group_async</span><span class="p">(</span><span class="nv">group</span><span class="nf">,</span> <span class="nv">queue</span><span class="nf">,</span> <span class="o">^</span><span class="p">{</span>
+	<span class="err">//</span><span class="nc">Some</span> <span class="nf">asynchronous</span> <span class="nf">work</span>
+<span class="p">});</span>
+
+<span class="nf">//</span> <span class="nc">Do</span> <span class="nf">some</span> <span class="nf">other</span> <span class="nf">work</span> <span class="nf">while</span> <span class="nf">the</span> <span class="nf">tasks</span> <span class="nf">execute</span>
+
+<span class="nf">//</span> <span class="nc">When</span> <span class="nf">you</span> <span class="nf">cannnot</span> <span class="nf">make</span> <span class="nf">any</span> <span class="nf">more</span> <span class="nf">forward</span> <span class="nf">progress</span>
+<span class="nf">//</span> <span class="nv">wait</span> <span class="nf">on</span> <span class="nf">the</span> <span class="nf">group</span> <span class="nf">to</span> <span class="nf">block</span> <span class="nf">the</span> <span class="nf">current</span> <span class="nf">thread</span>
+<span class="nf">dispatch_group_wait</span><span class="p">(</span><span class="nv">group</span><span class="nf">,</span> <span class="nc">DISPATCH_TIME_FOREVER</span><span class="p">);</span>
+
+<span class="nf">//</span> <span class="nc">Release</span> <span class="nf">the</span> <span class="nf">group</span> <span class="nf">when</span> <span class="nf">it</span> <span class="nf">is</span> <span class="nf">no</span> <span class="nf">longer</span> <span class="nf">needed</span>
+<span class="nf">dispatch_release</span><span class="p">(</span><span class="nv">group</span><span class="p">)</span></code></pre></figure>
+
+<h2 id="dispatch-semaphores">Dispatch Semaphores</h2>
+<p>dispatch semaphore类似于传统的信号量，作用也类似。</p>
+
+<h2 id="dispatch-sources">Dispatch Sources</h2>
+<p>dispatch source是一种基本的数据类型，GCD支持以下类型的dispatch sources</p>
+
+<ul>
+  <li>Timer dispatch source：产生周期性的通知</li>
+  <li>Signal dispatch source：UNIX信号通知</li>
+  <li>Descriptor source：文件或者socket操作通知</li>
+  <li>Process dispatch source：进程相关事件通知</li>
+  <li>Mach port dispatch source：Mach相关事件通知</li>
+  <li>Custom dispatch sourceno：自定义并触发的通知</li>
+</ul>
+
+<p><br /></p>
+
+<h1 id="section-2">代码实践</h1>
+<p>下面用于记录gcd各种实用的使用</p>
+
+<ul>
+  <li>singleton</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">+</span> <span class="p">(</span><span class="nv">instancetype</span><span class="p">)</span><span class="nf">sharedInstance</span>
+<span class="p">{</span>
+    <span class="nv">static</span> <span class="nf">dispatch_once_t</span> <span class="nf">once</span><span class="p">;</span>
+    <span class="nf">static</span> <span class="nf">id</span> <span class="nf">sharedInstance</span><span class="p">;</span>
+    <span class="nf">dispatch_once</span><span class="p">(</span><span class="err">&amp;</span><span class="nv">once</span><span class="nf">,</span> <span class="o">^</span><span class="p">{</span>
+        <span class="nv">sharedInstance</span> <span class="nf">=</span> <span class="p">[[</span><span class="bp">self</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">init</span><span class="p">];</span>
+    <span class="p">});</span>
+    <span class="nf">return</span> <span class="nf">sharedInstance</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<ul>
+  <li>保护资源</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">setCount:</span> <span class="p">(</span><span class="nc">NSUInteger</span><span class="p">)</span><span class="nf">count</span> <span class="nf">forKey:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">key</span>
+<span class="p">{</span>
+	<span class="nv">key</span> <span class="nf">=</span> <span class="p">[</span><span class="nv">key</span> <span class="nf">copy</span><span class="p">];</span>
+	<span class="nf">dispatch_async</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="nv">isolationQueue</span><span class="nf">,</span> <span class="o">^</span><span class="p">(){</span>
+		<span class="nv">if</span><span class="p">(</span><span class="nv">count</span> <span class="nf">==</span> <span class="m">0</span><span class="p">)</span> <span class="p">{</span>
+			<span class="p">[</span><span class="bp">self</span><span class="p">.</span><span class="nv">counts</span> <span class="nf">removeObjectForKey:</span><span class="nv">key</span><span class="p">];</span>
+		<span class="p">}</span><span class="nf">else</span><span class="p">{</span>
+			<span class="bp">self</span><span class="p">.</span><span class="nv">counts</span><span class="p">[</span><span class="nv">key</span><span class="p">]</span> <span class="nf">=</span> <span class="err">@</span><span class="p">(</span><span class="nv">count</span><span class="p">);</span>
+		<span class="p">}</span>
+	<span class="p">});</span> 
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nc">NSUInteger</span><span class="p">)</span><span class="nf">countForKey:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">key</span>
+<span class="p">{</span>
+	<span class="o">__</span><span class="nv">block</span> <span class="nf">NSUInteger</span> <span class="nf">count</span><span class="p">;</span>
+	<span class="nf">dispatch_sync</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="nv">isolationQueue</span><span class="nf">,</span> <span class="o">^</span><span class="p">(){</span>
+		<span class="nc">NSNumber</span> <span class="nf">*</span><span class="nv">n</span> <span class="nf">=</span> <span class="bp">self</span><span class="p">.</span><span class="nv">counts</span><span class="p">[</span><span class="nv">key</span><span class="p">];</span>
+		<span class="nf">count</span> <span class="nf">=</span> <span class="p">[</span><span class="nv">n</span> <span class="nf">unsignedIntegerValue</span><span class="p">];</span>
+	<span class="p">});</span>
+
+	<span class="nf">return</span> <span class="nf">count</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<p>这样self.count就不会有并发问题了。self.isolationQueue是串行queue</p>
+
+<ul>
+  <li>一个资源，多读少写</li>
+</ul>
+
+<figure class="highlight"><pre><code class="language-smalltalk" data-lang="smalltalk"><span class="err">//</span> <span class="err">创建并发</span><span class="nv">queue</span>
+<span class="nf">self</span><span class="p">.</span><span class="nv">isolationQueue</span> <span class="nf">=</span> <span class="nv">dispatch_queue_create</span><span class="p">([</span><span class="nv">label</span> <span class="nf">UTF8String</span><span class="p">]</span><span class="nf">,</span> <span class="nc">DISPATCH_QUEUE_CONCURRENT</span><span class="p">);</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">setCount:</span><span class="p">(</span><span class="nc">NSUInteger</span><span class="p">)</span><span class="nf">count</span> <span class="nf">forKey:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">key</span>
+<span class="p">{</span>
+	<span class="nv">key</span> <span class="nf">=</span> <span class="p">[</span><span class="nv">key</span> <span class="nf">copy</span><span class="p">];</span>
+	<span class="nf">//</span> <span class="err">屏障函数，实现资源保护</span>
+	<span class="nv">dispatch_barrier_async</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="nv">isolationQueue</span><span class="nf">,</span> <span class="o">^</span><span class="p">(){</span>
+		<span class="nv">if</span><span class="p">(</span><span class="nv">count</span> <span class="nf">==</span> <span class="m">0</span><span class="p">)</span> <span class="p">{</span>
+			<span class="p">[</span><span class="bp">self</span><span class="p">.</span><span class="nv">counts</span> <span class="nf">removeObjectForKey:</span> <span class="nv">key</span><span class="p">];</span>
+		<span class="p">}</span><span class="nf">else</span><span class="p">{</span>
+			<span class="bp">self</span><span class="p">.</span><span class="nv">counts</span><span class="p">[</span><span class="nv">key</span><span class="p">]</span> <span class="nf">=</span> <span class="err">@</span><span class="p">(</span><span class="nv">count</span><span class="p">);</span>
+		<span class="p">}</span>
+	<span class="p">});</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nc">NSUInteger</span><span class="p">)</span><span class="nf">countForKey:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">key</span>
+<span class="p">{</span>
+	<span class="o">__</span><span class="nv">block</span> <span class="nf">NSUInteger</span> <span class="nf">count</span><span class="p">;</span>
+	<span class="nf">dispatch_sync</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="nv">isolationQueue</span><span class="nf">,</span> <span class="o">^</span><span class="p">(){</span>
+		<span class="nc">NSNumber</span> <span class="nf">*</span><span class="nv">n</span> <span class="nf">=</span> <span class="bp">self</span><span class="p">.</span><span class="nv">counts</span><span class="p">[</span><span class="nv">key</span><span class="p">];</span>
+		<span class="nf">count</span> <span class="nf">=</span> <span class="p">[</span><span class="nv">n</span> <span class="nf">unsignedIntegerValue</span><span class="p">];</span>
+	<span class="p">});</span>
+
+	<span class="nf">return</span> <span class="nf">count</span><span class="p">;</span>
+<span class="p">}</span></code></pre></figure>
+
+<p><br /></p>
+
+<h1 id="section-3">其他</h1>
+
+<h2 id="operation-queues">Operation Queues</h2>
+<p>cocoa operations是采用面向对象的方式封装异步任务。他们可以自己执行，也可以结合operation queue来执行。关于操作队列详细信息请参考<a href="https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/OperationObjects/OperationObjects.html">Operation Queues</a>。</p>
+
+<p><br /></p>
+
+<h1 id="section-4">参考</h1>
+
+<ul>
+  <li><a href="http://www.objc.io/issue-2/concurrency-apis-and-pitfalls.html">concurrency-apis-and-pitfalls</a></li>
+  <li><a href="https://developer.apple.com/library/mac/documentation/Performance/Reference/GCD_libdispatch_Ref/index.html">Grand Central Dispatch (GCD) Reference</a></li>
+  <li><a href="https://developer.apple.com/library/mac/documentation/General/Conceptual/ConcurrencyProgrammingGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40008091">ConcurrencyProgrammingGuide</a></li>
+  <li><a href="http://www.objc.io/issue-2/low-level-concurrency-apis.html">Low-Level Concurrency APIs</a></li>
+</ul>
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2015-05-28 00:14:43 +0800" data-title="GCD技术详解" data-url="/gcd/2015/05/28/gcd.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

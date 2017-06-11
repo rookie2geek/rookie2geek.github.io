@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>React Native桥详解</title>
+  <meta name="description" content="该文主要是对Tadeu Bridging In React Native的翻译。结合代码做了一定的分析。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/js/react-native/2016/03/30/react-native%E6%A1%A5%E8%AF%A6%E8%A7%A3.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">React Native桥详解</h1>
+    <p class="post-meta">Mar 30, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>该文主要是对<a href="http://tadeuzagallo.com/blog/react-native-bridge/">Tadeu Bridging In React Native</a>的翻译。结合代码做了一定的分析。</p>
+
+<h1 id="section">线程们</h1>
+<p>RN框架有三个主要的线程，他们分别是：</p>
+
+<ol>
+  <li>shadow queue: 专门用来布局的queue</li>
+  <li>main thread: 主线程，用于UI展示</li>
+  <li>javascript thread: 专门用来执行JS代码的线程</li>
+  <li>每个NativeModules默认都有自己的queue</li>
+</ol>
+
+<p>源码中的应用分别举个例子</p>
+
+<p>1、shadow queue</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">setIntrinsicContentSize:</span><span class="p">(</span><span class="nc">CGSize</span><span class="p">)</span><span class="nf">size</span> <span class="nf">forView:</span><span class="p">(</span><span class="nc">UIView</span> <span class="nf">*</span><span class="p">)</span><span class="nf">view</span>
+<span class="p">{</span>
+  <span class="nc">RCTAssertMainThread</span><span class="p">();</span>
+
+  <span class="nf">NSNumber</span> <span class="nf">*</span><span class="nv">reactTag</span> <span class="nf">=</span> <span class="nv">view</span><span class="p">.</span><span class="nv">reactTag</span><span class="p">;</span>
+
+  <span class="nf">//</span> <span class="err">在shadowQueue中进行布局操作</span>
+  <span class="nv">dispatch_async</span><span class="p">(</span><span class="o">_</span><span class="nv">shadowQueue</span><span class="nf">,</span> <span class="o">^</span><span class="p">{</span>
+    <span class="nc">RCTShadowView</span> <span class="nf">*</span><span class="nv">shadowView</span> <span class="nf">=</span> <span class="o">_</span><span class="nv">shadowViewRegistry</span><span class="p">[</span><span class="nv">reactTag</span><span class="p">];</span>
+    <span class="nf">RCTAssert</span><span class="p">(</span><span class="nv">shadowView</span> <span class="nf">!=</span> <span class="bp">nil</span><span class="nf">,</span> <span class="err">@</span><span class="c">"Could not locate root view with tag #%@"</span><span class="err">,</span> <span class="nv">reactTag</span><span class="p">);</span>
+
+    <span class="nf">shadowView</span><span class="p">.</span><span class="nv">intrinsicContentSize</span> <span class="nf">=</span> <span class="nv">size</span><span class="p">;</span>
+
+    <span class="p">[</span><span class="bp">self</span> <span class="nf">batchDidComplete</span><span class="p">];</span>
+  <span class="p">});</span>
+<span class="p">}</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">batchDidComplete</span>
+<span class="p">{</span>
+    <span class="err">//</span> <span class="err">进行真正的渲染</span>
+  <span class="p">[</span><span class="bp">self</span> <span class="o">_</span><span class="nv">layoutAndMount</span><span class="p">];</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<p>2、main thread
+这就不举例了，写过iOS的同学应该知道主线程的作用。</p>
+
+<p>3、jsThread</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">//</span> <span class="err">所有的js代码都是通过这个函数来实现的</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">executeBlockOnJavaScriptQueue:</span><span class="p">(</span><span class="nv">dispatch_block_t</span><span class="p">)</span><span class="nf">block</span>
+<span class="p">{</span>
+    <span class="err">//</span> <span class="err">判断当前线程是不是js线程，如果不是的话，那就在js线程执行</span>
+  <span class="nv">if</span> <span class="p">([</span><span class="nc">NSThread</span> <span class="nf">currentThread</span><span class="p">]</span> <span class="nf">!=</span> <span class="o">_</span><span class="nv">javaScriptThread</span><span class="p">)</span> <span class="p">{</span>
+    <span class="p">[</span><span class="bp">self</span> <span class="nf">performSelector:</span><span class="err">@</span><span class="nv">selector</span><span class="p">(</span><span class="err">executeBlockOnJavaScriptQueue:</span><span class="p">)</span>
+                 <span class="nf">onThread:</span><span class="o">_</span><span class="nv">javaScriptThread</span> <span class="nf">withObject:</span><span class="nv">block</span> <span class="nf">waitUntilDone:</span><span class="nc">NO</span><span class="p">];</span>
+  <span class="p">}</span> <span class="nf">else</span> <span class="p">{</span>
+    <span class="nv">block</span><span class="p">();</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+<p>4、NativeModules queue</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">//</span> <span class="err">大部分module的在export的时候都会实现RCTBridgeModule协议中的这个</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">dispatch_queue_t</span><span class="p">)</span><span class="nf">methodQueue</span>
+<span class="p">{</span>
+  <span class="nv">return</span> <span class="nf">dispatch_get_main_queue</span><span class="p">();</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="err">如果没有实现的话，那就会使用默认的</span>
+<span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">setUpMethodQueue</span>
+<span class="p">{</span>
+  <span class="nv">if</span> <span class="p">(</span><span class="o">_</span><span class="nv">instance</span> <span class="nf">&amp;&amp;</span> <span class="p">!</span><span class="o">_</span><span class="nv">methodQueue</span> <span class="nf">&amp;&amp;</span> <span class="o">_</span><span class="nv">bridge</span><span class="p">.</span><span class="nv">valid</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nc">BOOL</span> <span class="nf">implementsMethodQueue</span> <span class="nf">=</span> <span class="p">[</span><span class="o">_</span><span class="nv">instance</span> <span class="nf">respondsToSelector:</span><span class="err">@</span><span class="nv">selector</span><span class="p">(</span><span class="nv">methodQueue</span><span class="p">)];</span>
+    <span class="nf">if</span> <span class="p">(</span><span class="nv">implementsMethodQueue</span> <span class="nf">&amp;&amp;</span> <span class="o">_</span><span class="nv">bridge</span><span class="p">.</span><span class="nv">valid</span><span class="p">)</span> <span class="p">{</span>
+      <span class="o">_</span><span class="nv">methodQueue</span> <span class="nf">=</span> <span class="o">_</span><span class="nv">instance</span><span class="p">.</span><span class="nv">methodQueue</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="nf">if</span> <span class="p">(!</span><span class="o">_</span><span class="nv">methodQueue</span> <span class="nf">&amp;&amp;</span> <span class="o">_</span><span class="nv">bridge</span><span class="p">.</span><span class="nv">valid</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="err">//</span> <span class="err">可以发现，每个module都是有自己的线程的</span>
+      <span class="err">//</span> <span class="nc">Create</span> <span class="nb">new</span> <span class="nf">queue</span> <span class="p">(</span><span class="nv">store</span> <span class="nf">queueName,</span> <span class="nv">as</span> <span class="nf">it</span> <span class="nf">isn</span><span class="err">'</span><span class="nv">t</span> <span class="nf">retained</span> <span class="nf">by</span> <span class="nf">dispatch_queue</span><span class="p">)</span>
+      <span class="o">_</span><span class="nv">queueName</span> <span class="nf">=</span> <span class="p">[</span><span class="nc">NSString</span> <span class="nf">stringWithFormat:</span><span class="err">@</span><span class="c">"com.facebook.React.%@Queue"</span><span class="err">,</span> <span class="bp">self</span><span class="p">.</span><span class="nv">name</span><span class="p">];</span>
+      <span class="o">_</span><span class="nv">methodQueue</span> <span class="nf">=</span> <span class="nv">dispatch_queue_create</span><span class="p">(</span><span class="o">_</span><span class="nv">queueName</span><span class="p">.</span><span class="nc">UTF8String</span><span class="nf">,</span> <span class="nc">DISPATCH_QUEUE_SERIAL</span><span class="p">);</span>
+
+      <span class="nf">//</span> <span class="nv">assign</span> <span class="nf">it</span> <span class="nf">to</span> <span class="nf">the</span> <span class="nf">module</span>
+      <span class="nf">if</span> <span class="p">(</span><span class="nv">implementsMethodQueue</span><span class="p">)</span> <span class="p">{</span>
+        <span class="err">@</span><span class="nv">try</span> <span class="p">{</span>
+          <span class="p">[(</span><span class="nv">id</span><span class="p">)</span><span class="o">_</span><span class="nv">instance</span> <span class="nf">setValue:</span><span class="o">_</span><span class="nv">methodQueue</span> <span class="nf">forKey:</span><span class="err">@</span><span class="c">"methodQueue"</span><span class="p">];</span>
+        <span class="p">}</span>
+        <span class="nf">@</span><span class="nv">catch</span> <span class="p">(</span><span class="nc">NSException</span> <span class="nf">*</span><span class="nv">exception</span><span class="p">)</span> <span class="p">{</span>
+          <span class="nc">RCTLogError</span><span class="p">(</span><span class="err">@</span><span class="c">"%@ is returning nil for its methodQueue, which is not "</span>
+                      <span class="c">"permitted. You must either return a pre-initialized "</span>
+                      <span class="c">"queue, or @synthesize the methodQueue to let the bridge "</span>
+                      <span class="c">"create a queue for you."</span><span class="err">,</span> <span class="bp">self</span><span class="p">.</span><span class="nv">name</span><span class="p">);</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<h1 id="native-modules">Native Modules</h1>
+<p>如果想要让js能成功调用native，那就要先讲native modules进行export。具体的export可以参考<a href="http://facebook.github.io/react-native/docs/native-modules-ios.html#content">这里</a>。</p>
+
+<p>export的时候有两个非常重要的宏定义：</p>
+
+<ol>
+  <li>RCT_EXPORT_MODULE(js_name): 导出模块</li>
+  <li>RCT_EXPORT_METHOD(method): 到处模块中的方法</li>
+</ol>
+
+<p>先看下实现
+1. RCT_EXPORT_MODULE</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="ss">#define</span> <span class="nf">RCT_EXPORT_MODULE</span><span class="p">(</span><span class="nv">js_name</span><span class="p">)</span> <span class="nf">\</span>
+<span class="nc">RCT_EXTERN</span> <span class="nf">void</span> <span class="nf">RCTRegisterModule</span><span class="p">(</span><span class="nc">Class</span><span class="p">);</span> <span class="nf">\</span>
+<span class="err">+</span> <span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">moduleName</span> <span class="p">{</span> <span class="nv">return</span> <span class="nf">@</span><span class="ss">#js_name</span><span class="p">;</span> <span class="p">}</span> <span class="nf">\</span>
+<span class="err">+</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">load</span> <span class="p">{</span> <span class="nc">RCTRegisterModule</span><span class="p">(</span><span class="bp">self</span><span class="p">);</span> <span class="p">}</span>
+
+</code></pre>
+</div>
+<p>可以发现，通过这个宏，我们实现了两个函数。</p>
+
+<ul>
+  <li>一个是moduleName，返回的是我们指定暴露给js的名字js_name，如果不指定的话，默认是module的类名。</li>
+  <li>一个是load方法，我们都知道load方法在app启动的时候就会调用，所以，当我们export module之后，app一起来就会将自己注册，由框架统一暴露js。</li>
+</ul>
+
+<ol>
+  <li>RCT_EXPORT_METHOD</li>
+</ol>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="ss">#define</span> <span class="nf">RCT_EXPORT_METHOD</span><span class="p">(</span><span class="nv">method</span><span class="p">)</span> <span class="nf">\</span>
+  <span class="nc">RCT_REMAP_METHOD</span><span class="p">(</span><span class="err">,</span> <span class="nv">method</span><span class="p">)</span>
+
+<span class="ss">#define</span> <span class="nf">RCT_REMAP_METHOD</span><span class="p">(</span><span class="nv">js_name</span><span class="nf">,</span> <span class="nv">method</span><span class="p">)</span> <span class="nf">\</span>
+  <span class="nc">RCT_EXTERN_REMAP_METHOD</span><span class="p">(</span><span class="nv">js_name</span><span class="nf">,</span> <span class="nv">method</span><span class="p">)</span> <span class="nf">\</span>
+  <span class="err">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">method</span>
+
+<span class="ss">#define</span> <span class="nf">RCT_EXTERN_REMAP_METHOD</span><span class="p">(</span><span class="nv">js_name</span><span class="nf">,</span> <span class="nv">method</span><span class="p">)</span> <span class="nf">\</span>
+  <span class="err">+</span> <span class="p">(</span><span class="nc">NSArray</span><span class="nf">&lt;</span><span class="nc">NSString</span> <span class="nf">*&gt;</span> <span class="err">*</span><span class="p">)</span><span class="nf">RCT_CONCAT</span><span class="p">(</span><span class="o">__</span><span class="nv">rct_export__</span><span class="nf">,</span> <span class="err">\</span>
+    <span class="nc">RCT_CONCAT</span><span class="p">(</span><span class="nv">js_name</span><span class="nf">,</span> <span class="nc">RCT_CONCAT</span><span class="p">(</span><span class="o">__</span><span class="nc">LINE__</span><span class="nf">,</span> <span class="o">__</span><span class="nc">COUNTER__</span><span class="p">)))</span> <span class="p">{</span> <span class="err">\</span>
+    <span class="nv">return</span> <span class="nf">@</span><span class="p">[</span><span class="err">@</span><span class="ss">#js_name</span><span class="nf">,</span> <span class="err">@</span><span class="ss">#method</span><span class="p">];</span> <span class="nf">\</span>
+  <span class="p">}</span>
+
+</code></pre>
+</div>
+<p>可以发现，当调用RCT_EXPORT_METHOD的时候，其实其是创建了一个函数，该函数以<code class="highlighter-rouge">"__rct_export__"</code>开头，返回的是一个数组，第一个元素是js_name，第二个元素是method。举个例子。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nc">RCT_EXPORT_METHOD</span><span class="p">(</span><span class="err">greet:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">name</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="nc">NSLog</span><span class="p">(</span><span class="err">@</span><span class="c">"Hi, %@!"</span><span class="err">,</span> <span class="nv">name</span><span class="p">);</span>
+  <span class="p">[</span><span class="o">_</span><span class="nv">bridge</span><span class="p">.</span><span class="nv">eventDispatcher</span> <span class="nf">sendAppEventWithName:</span><span class="err">@</span><span class="c">"greeted"</span>
+                                           <span class="err">body:@</span><span class="p">{</span> <span class="err">@</span><span class="c">"name"</span><span class="err">:</span> <span class="nv">name</span> <span class="p">}];</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="err">其结果大致长成</span>
+<span class="err">+</span> <span class="p">(</span><span class="nc">NSArray</span> <span class="nf">*</span><span class="p">)</span><span class="o">__</span><span class="nv">rct_export__120</span>
+<span class="p">{</span>
+  <span class="nv">return</span> <span class="nf">@</span><span class="p">[</span> <span class="err">@</span><span class="c">""</span><span class="err">,</span> <span class="err">@</span><span class="c">"greet:(NSString *)name"</span> <span class="p">];</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+<p>export之后，RN是怎么用的呢？下面就详细的解析一下整个过程。</p>
+
+<ol>
+  <li>在<code class="highlighter-rouge">application:didFinishLaunchingWithOptions:</code>中创建一个bridge</li>
+  <li>创建bridge会自己创建一个batchedBridge，并且start自己</li>
+  <li>start的会调用<code class="highlighter-rouge">initModulesWithDispatchGroup</code>初始化所有之前注册的模块</li>
+  <li>start在初始化所有模块之后，会调用<code class="highlighter-rouge">[weakSelf moduleConfig]</code>获取模块配置</li>
+  <li>然后通过使用<code class="highlighter-rouge">injectJSONConfiguration:</code>将配置注入js供js调用（注意这里config不一定是在这里注入的，也可以按需注入)</li>
+</ol>
+
+<p>下面，我们看一下核心的代码。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="nf">//</span> <span class="nv">1</span> 
+<span class="err">//</span> <span class="nc">AppDelegate</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nc">BOOL</span><span class="p">)</span><span class="nf">application:</span><span class="p">(</span><span class="o">__</span><span class="nv">unused</span> <span class="nf">UIApplication</span> <span class="nf">*</span><span class="p">)</span><span class="nf">application</span> <span class="nf">didFinishLaunchingWithOptions:</span><span class="p">(</span><span class="nc">NSDictionary</span> <span class="nf">*</span><span class="p">)</span><span class="nf">launchOptions</span>
+<span class="p">{</span>
+  <span class="o">_</span><span class="nv">bridge</span> <span class="nf">=</span> <span class="p">[[</span><span class="nc">RCTBridge</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithDelegate:</span><span class="bp">self</span>
+                                  <span class="nf">launchOptions:</span><span class="nv">launchOptions</span><span class="p">];</span>
+  <span class="p">.</span><span class="err">.....</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="m">2</span> 
+<span class="nf">//</span> <span class="nc">RCTBridge</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">setUp</span>
+<span class="p">{</span>
+  <span class="err">.....</span>
+  <span class="p">[</span><span class="bp">self</span> <span class="nf">createBatchedBridge</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="nc">RCTBatchedBridge</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">start</span>
+<span class="p">{</span>
+  <span class="err">......</span>
+  <span class="err">//</span> <span class="nc">Synchronously</span> <span class="nf">initialize</span> <span class="nf">all</span> <span class="nf">native</span> <span class="nf">modules</span> <span class="nf">that</span> <span class="nf">cannot</span> <span class="nf">be</span> <span class="nf">loaded</span> <span class="nf">lazily</span>
+  <span class="p">[</span><span class="bp">self</span> <span class="nf">initModulesWithDispatchGroup:</span><span class="nv">initModulesAndLoadSource</span><span class="p">];</span>
+  <span class="p">.</span><span class="err">.....</span>
+  <span class="p">[</span><span class="nv">weakSelf</span> <span class="nf">setUpExecutor</span><span class="p">];</span>
+  <span class="p">.</span><span class="err">.....</span>
+  <span class="nv">config</span> <span class="nf">=</span> <span class="p">[</span><span class="nv">weakSelf</span> <span class="nf">moduleConfig</span><span class="p">];</span>
+  <span class="p">.</span><span class="err">.....</span>
+  <span class="p">[</span><span class="nv">weakSelf</span> <span class="nf">injectJSONConfiguration:</span><span class="nv">config</span> <span class="nf">onComplete</span><span class="p">.</span><span class="err">.....</span>
+  <span class="err">......</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="m">3</span>
+<span class="nf">//</span> <span class="nc">RCTBatchedBridge</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">initModulesWithDispatchGroup:</span><span class="p">(</span><span class="nv">dispatch_group_t</span><span class="p">)</span><span class="nf">dispatchGroup</span>
+<span class="p">{</span>
+  <span class="err">......</span>
+  <span class="err">//</span> <span class="err">RCTGetModuleClasses获取我们之前注册的所有</span><span class="nv">modules</span>
+  <span class="nf">for</span> <span class="p">(</span><span class="nc">Class</span> <span class="nf">moduleClass</span> <span class="nf">in</span> <span class="nf">RCTGetModuleClasses</span><span class="p">())</span> <span class="p">{</span>
+    <span class="nc">NSString</span> <span class="nf">*</span><span class="nv">moduleName</span> <span class="nf">=</span> <span class="nc">RCTBridgeModuleNameForClass</span><span class="p">(</span><span class="nv">moduleClass</span><span class="p">);</span>
+    <span class="p">.</span><span class="err">.....</span>
+    <span class="nv">moduleData</span> <span class="nf">=</span> <span class="p">[[</span><span class="nc">RCTModuleData</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithModuleClass:</span><span class="nv">moduleClass</span>
+                                                     <span class="nf">bridge:</span><span class="bp">self</span><span class="p">];</span>
+    <span class="nf">moduleDataByName</span><span class="p">[</span><span class="nv">moduleName</span><span class="p">]</span> <span class="nf">=</span> <span class="nv">moduleData</span><span class="p">;</span>
+    <span class="p">[</span><span class="nv">moduleClassesByID</span> <span class="nf">addObject:</span><span class="nv">moduleClass</span><span class="p">];</span>
+    <span class="p">[</span><span class="nv">moduleDataByID</span> <span class="nf">addObject:</span><span class="nv">moduleData</span><span class="p">];</span>
+  <span class="p">}</span>
+  <span class="p">.</span><span class="err">.....</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="m">4</span>
+<span class="nf">//</span> <span class="nc">RCTModuleData</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">//</span> <span class="err">通过ModuleData可以获取所有的export的方法，然后通过injectJsonConfig的方式让js看到</span>
+<span class="err">-</span> <span class="p">(</span><span class="nc">NSArray</span><span class="nf">&lt;</span><span class="nv">id</span><span class="nf">&lt;</span><span class="nc">RCTBridgeMethod</span><span class="nf">&gt;&gt;</span> <span class="err">*</span><span class="p">)</span><span class="nf">methods</span>
+<span class="p">{</span>
+    <span class="err">......</span>
+    <span class="nv">unsigned</span> <span class="nf">int</span> <span class="nf">methodCount</span><span class="p">;</span>
+    <span class="nf">Method</span> <span class="nf">*</span><span class="nv">methods</span> <span class="nf">=</span> <span class="nv">class_copyMethodList</span><span class="p">(</span><span class="nv">object_getClass</span><span class="p">(</span><span class="o">_</span><span class="nv">moduleClass</span><span class="p">)</span><span class="nf">,</span> <span class="err">&amp;</span><span class="nv">methodCount</span><span class="p">);</span>
+
+    <span class="nf">for</span> <span class="p">(</span><span class="nv">unsigned</span> <span class="nf">int</span> <span class="nf">i</span> <span class="nf">=</span> <span class="m">0</span><span class="p">;</span> <span class="nf">i</span> <span class="nf">&lt;</span> <span class="nv">methodCount</span><span class="p">;</span> <span class="nf">i++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nc">Method</span> <span class="nf">method</span> <span class="nf">=</span> <span class="nv">methods</span><span class="p">[</span><span class="nv">i</span><span class="p">];</span>
+      <span class="nf">SEL</span> <span class="nf">selector</span> <span class="nf">=</span> <span class="nv">method_getName</span><span class="p">(</span><span class="nv">method</span><span class="p">);</span>
+      <span class="nf">if</span> <span class="p">([</span><span class="nc">NSStringFromSelector</span><span class="p">(</span><span class="nv">selector</span><span class="p">)</span> <span class="nf">hasPrefix:</span><span class="err">@</span><span class="c">"__rct_export__"</span><span class="p">])</span> <span class="p">{</span>
+        <span class="nc">IMP</span> <span class="nf">imp</span> <span class="nf">=</span> <span class="nv">method_getImplementation</span><span class="p">(</span><span class="nv">method</span><span class="p">);</span>
+        <span class="nf">NSArray&lt;</span><span class="nc">NSString</span> <span class="nf">*&gt;</span> <span class="err">*</span><span class="nv">entries</span> <span class="nf">=</span>
+          <span class="p">((</span><span class="nc">NSArray</span><span class="nf">&lt;</span><span class="nc">NSString</span> <span class="nf">*&gt;</span> <span class="err">*</span><span class="p">(</span><span class="err">*</span><span class="p">)(</span><span class="nv">id</span><span class="nf">,</span> <span class="nc">SEL</span><span class="p">))</span><span class="nf">imp</span><span class="p">)(</span><span class="o">_</span><span class="nv">moduleClass</span><span class="nf">,</span> <span class="nv">selector</span><span class="p">);</span>
+        <span class="nf">id&lt;</span><span class="nc">RCTBridgeMethod</span><span class="nf">&gt;</span> <span class="nv">moduleMethod</span> <span class="nf">=</span>
+          <span class="p">[[</span><span class="nc">RCTModuleMethod</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithMethodSignature:</span><span class="nv">entries</span><span class="p">[</span><span class="m">1</span><span class="p">]</span>
+                                              <span class="nf">JSMethodName:</span><span class="nv">entries</span><span class="p">[</span><span class="m">0</span><span class="p">]</span>
+                                               <span class="nf">moduleClass:</span><span class="o">_</span><span class="nv">moduleClass</span><span class="p">];</span>
+
+        <span class="p">[</span><span class="nv">moduleMethods</span> <span class="nf">addObject:</span><span class="nv">moduleMethod</span><span class="p">];</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">.</span><span class="err">.....</span>
+  <span class="p">}</span>
+  <span class="nf">return</span> <span class="o">_</span><span class="nv">methods</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nf">//</span> <span class="m">5</span>
+<span class="nf">//</span> <span class="nc">RCTBatchedBridge</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">-</span> <span class="p">(</span><span class="nv">void</span><span class="p">)</span><span class="nf">injectJSONConfiguration:</span><span class="p">(</span><span class="nc">NSString</span> <span class="nf">*</span><span class="p">)</span><span class="nf">configJSON</span>
+                     <span class="nf">onComplete:</span><span class="p">(</span><span class="nv">void</span> <span class="p">(</span><span class="o">^</span><span class="p">)(</span><span class="nc">NSError</span> <span class="nf">*</span><span class="p">))</span><span class="nf">onComplete</span>
+<span class="p">{</span>
+  <span class="nv">if</span> <span class="p">(!</span><span class="o">_</span><span class="nv">valid</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">return</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="nf">//</span> <span class="err">在jsExecutor中执行，将其搞成</span><span class="nv">js</span> <span class="nf">vm</span><span class="err">中的一个全局变量</span>
+  <span class="p">[</span><span class="o">_</span><span class="nv">javaScriptExecutor</span> <span class="nf">injectJSONText:</span><span class="nv">configJSON</span>
+                  <span class="nf">asGlobalObjectNamed:</span><span class="err">@</span><span class="c">"__fbBatchedBridgeConfig"</span>
+                             <span class="nf">callback:</span><span class="nv">onComplete</span><span class="p">];</span>
+<span class="p">}</span>
+
+</code></pre>
+</div>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-03-30 00:00:00 +0800" data-title="React Native桥详解" data-url="/js/react-native/2016/03/30/react-native%E6%A1%A5%E8%AF%A6%E8%A7%A3.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

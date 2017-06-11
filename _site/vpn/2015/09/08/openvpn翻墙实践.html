@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>openvpn翻墙实践</title>
+  <meta name="description" content="openvpn配置实践总结。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/vpn/2015/09/08/openvpn%E7%BF%BB%E5%A2%99%E5%AE%9E%E8%B7%B5.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">openvpn翻墙实践</h1>
+    <p class="post-meta">Sep 8, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>openvpn配置实践总结。</p>
+
+<h1 id="section">原理</h1>
+<p>vpn的全称叫virtual private network，虚拟专用网络，即利用公网架设专用网络。vpn的作用就是当外地员工想要访问内网资源的时候，外地员工可以通过连接vpn server，然后访问内网资源<a href="http://baike.baidu.com/link?url=1xZna2Iapi4-RWKsx7DhxdVq7wXzZ8TW5_jbxVxZnGhj_P2nR-T6vGzkp94y605_qyfUD5bMvisdSvuT2ASD9seNLDHRS_w9a3Knnw9HIW_pEwaWY6RknWHUjnWYr6Jm">vpn原理</a>。</p>
+
+<p>因此作为墙内的我们，可以将整个国外的网络环境当成某个公司的内网资源，如果能够在该国外网络中架设一个vpn server，然后我们在墙内连上该vpn server我们就可以访问整个国外的网络资源了。</p>
+
+<p>openvpn是工作在OSI模型的数据链路层和网络层的，所以如果使用vpn翻墙，那几乎我们能用到的网络请求都能翻过去，而不像代理，只能解决http类似的请求。</p>
+
+<h1 id="section-1">搭建步骤</h1>
+<p>从原理我们可以知道
+1. 需要一个可以访问的国外的vps或者其他能够访问的机器。
+2. 搭建vpnserver
+3. 搭建vpnclient
+4. 通过调整ip转发来优化vpnsever</p>
+
+<h2 id="vps">国外vps或者其他可以访问的机器</h2>
+<p>本文作者使用的是<a href="http://www.digitalocean.com/">digitalocean</a>，速度不能说很优秀，但是稳定够用。这个vps还有个最大的问题是，其官网需要翻墙访问（dead lock），所以首次使用的用户谨慎选择。</p>
+
+<h2 id="vpnserver">搭建vpnserver</h2>
+<p>该步骤是整个过程中最复杂的部分，下面我们就一步一步来搭建。vpn server选用的openvpn，开源免费。若本文有说的不清楚的地方，请参考<a href="https://openvpn.net/index.php/open-source/documentation/howto.html#quick">HOWTO</a></p>
+
+<p><strong>下面仅以Ubuntu 15.04为例搭建vpn server，以Mac为例配置vpn client</strong></p>
+
+<ol>
+  <li>安装openvpn server
+首先执行命令：</li>
+</ol>
+
+<figure class="highlight"><pre><code class="language-sh" data-lang="sh">sudo apt-get install openvpn</code></pre></figure>
+
+<p>安装完之后关注两个目录
+/etc/openvpn: 该目录用于存放真正的配置文件
+/usr/share/doc/openvpn/examples: 该目录下提供了示例配置文件</p>
+
+<ol>
+  <li>以示例配置openvpn</li>
+</ol>
+
+<figure class="highlight"><pre><code class="language-sh" data-lang="sh"><span class="c"># 将examples目录下得keys拷贝到/etc/openvpn/keys目录下</span>
+<span class="nb">cd</span> /etc/openvpn
+mkdir keys
+cp -r /usr/share/doc/openvpn/examples/sample-keys keys/
+
+<span class="c"># 解压缩server.conf.gz</span>
+gunzip –c /usr/share/doc/openvpn/examples/sample-config-files/server.conf.gz &gt; server.conf
+
+<span class="c"># 修改server.conf</span>
+<span class="nb">local </span>0.0.0.0
+
+<span class="c"># 笔者用udp不能通过验证，具体原因未详，后续有结论继续更新</span>
+proto tcp
+
+ca /etc/openvpn/keys/ca.crt
+cert /etc/openvpn/keys/server.crt
+key /etc/openvpn/keys/server.key  <span class="c"># This file should be kept secret</span>
+
+dh /etc/openvpn/keys/dh1024.pem
+
+push <span class="s2">"redirect-gateway def1 bypass-dhcp"</span>
+
+push <span class="s2">"dhcp-option DNS 208.67.222.222"</span>
+push <span class="s2">"dhcp-option DNS 208.67.220.220"</span>
+
+client-to-client</code></pre></figure>
+
+<ol>
+  <li>启动openvpn</li>
+</ol>
+
+<figure class="highlight"><pre><code class="language-sh" data-lang="sh">openvpn /etc/openpvn/server.conf
+<span class="c"># 启动后注意观察terminal的输出，没有error就说明启动成功了</span></code></pre></figure>
+
+<ol>
+  <li>配置mac客户端
+mac客户端使用的是Tunnelblick[https://tunnelblick.net/]
+安装完后会弹一个sample的配置文件，和server的几乎一模一样，</li>
+</ol>
+
+<p>首先需要从vpn server下把 /usr/share/doc/openvpn/examples/sample-keys下的ca.crt、client.crt、client.key拷贝到/Users/fragno/Desktop/Tunnelblick VPN 配置样/目录下，然后修改配置文件</p>
+
+<figure class="highlight"><pre><code class="language-sh" data-lang="sh">proto tcp
+
+<span class="c"># 修改成自己的vpn server地址</span>
+remote xxx.xxx.xxx.xxx 1194</code></pre></figure>
+
+<p>修改文件夹后缀为tblk，然后双击后点击右上角的tunnelblick的连接即可，在vpn server的terminal上可以看到有log，连接成功的话就会有很多成功log，注意观察。</p>
+
+<p><strong>测试成功并不代表可以使用了，如果使用测试的配置进行vpn翻墙，危险是非常大的，下面的工作才是真正创建属于我们自己的vpn的工作</strong></p>
+
+<h2 id="vpn">创建能安全使用的vpn</h2>
+<p>因为如果使用vpn进行翻墙，那一旦我们连上vpn，我们所有的网络请求都会经过vpn server，我们传输给vpn server的数据必须是经过强加密的，否则就非常危险。
+因此在vpn server的搭建中，安全方面的准备工作是非常麻烦的。不过幸亏有了<a href="https://github.com/OpenVPN/easy-rsa">easy-rsa</a>。不了解原理做事没有安全感，所以下面简单的介绍下vpn的加密方式。</p>
+
+<h3 id="pki">PKI</h3>
+<p>openvpn的安全机制主要是由<a href="https://en.wikipedia.org/wiki/Public_key_infrastructure">PKI(public key instructure)</a>来实现的。
+PKI的原理有点类似我们身份证的发行机构，身份证发行机构有一套安全的发行和验证方法，保证了我们每个人的身份的唯一性和安全性。PKI也是这样，其主要有几个部分组成，包括证书机构(CA)、存放机构、中央目录、证书管理系统、证书策略等等。幸亏有了easy-rsa，我们可以很方便的创建我们自己的PKI。</p>
+
+<h4 id="easy-rsa">easy-rsa</h4>
+<p>easy-rsa是CLI工具，用来创建和管理PKI CA的。github上的使用说明太过通用，以下使用主要参考了<a href="http://blog.csdn.net/orangleliu/article/details/43157955">openvpn 服务端的安装(easy-rsa3)</a></p>
+
+<figure class="highlight"><pre><code class="language-sh" data-lang="sh"><span class="c"># 以下以~/目录为例。目录在哪里是没有关系的</span>
+<span class="nb">cd</span> ~ <span class="o">&amp;&amp;</span> git clone https://github.com/OpenVPN/easy-rsa.git
+mv easy-rsa easy-rsa-server
+cp -rf easy-rsa-server easy-rsa-client
+
+<span class="c"># 生成客户端的req</span>
+<span class="nb">cd</span> ~/easy-rsa-client/easyrsa3/
+cp vars.example vars  					<span class="c">#一般情况下，默认的配置可以满足需求，也可以根据需要修改</span>
+./easyrsa init-pki
+./easyrsa gen-req rookienerd 			<span class="c">#用自己的名字，需要创建一个密码  和 cn name，自己用的 需要记住，记住不能使用client，否则后面注册会有问题</span>
+
+
+<span class="c"># 生成服务端的ca</span>
+<span class="nb">cd</span> ~/easy-rsa-server/easyrsa3/
+cp vars.example vars  					<span class="c">#一般情况下，默认的配置可以满足需求，也可以根据需要修改</span>
+./easyrsa init-pki   					<span class="c">#建立一个空的pki结构，生成一系列的文件和目录</span>
+./easyrsa build-ca   					<span class="c">#创建ca  密码 和 cn那么需要记住</span>
+./easyrsa gen-req server nopass  		<span class="c">#创建服务端证书  common name 最好不要跟前面的cn那么一样</span>
+./easyrsa sign server server   			<span class="c">#签约服务端证书</span>
+./easyrsa gen-dh  						<span class="c">#创建Diffie-Hellman</span>
+
+./easyrsa import-req ~/easy-rsa-client/easyrsa3/pki/reqs/rookienerd.req rookienerd  <span class="c">#导入req</span>
+./easyrsa sign client rookienerd <span class="c">#用户签约，根据提示输入服务端的ca密码</span>
+
+<span class="c"># 这样我们就有了我们所需要的全部的文件，将他们分别拷贝到server和client端即可</span>
+<span class="c"># 拷贝到server端的文件</span>
+cp ~/easy-rsa-server/easyrsa3/ca.crt  /etc/openpvn/keys/ca.crt
+cp ~/easy-rsa-server/easyrsa3/dh.pem  /etc/openvpn/keys/dh1024.pem
+cp ~/easy-rsa-server/easyrsa3/issued/server.crt /etc/openpvn/keys/server.crt
+cp ~/easy-rsa-server/easyrsa3/private/server.key /etc/openvpn/keys/server.key
+
+<span class="c"># 拷贝到client端，这里client需要拷贝的文件包括ca.crt、rookienerd.crt、rookienerd.key(在~/easy-rsa-client/easyrsa3/pki/private/目录下)</span>
+<span class="c"># 注意如果不改配置的话，需要将名字换成client.crt和client.key，然后重启服务端，重启client就ok了。</span>
+
+service openvpn start</code></pre></figure>
+
+<h3 id="section-2">修改端口</h3>
+<p>不要使用默认的1194端口，改成任何比较大的端口都可以</p>
+
+<h2 id="section-3">路由配置</h2>
+<p>TODO</p>
+
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2015-09-08 17:41:14 +0800" data-title="openvpn翻墙实践" data-url="/vpn/2015/09/08/openvpn%E7%BF%BB%E5%A2%99%E5%AE%9E%E8%B7%B5.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

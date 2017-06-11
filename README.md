@@ -1,2 +1,4 @@
-# rookie2geek.github.io
-crazy programmer
+# rookie-nerd.github.io
+技术博客
+
+from rookie to nerd

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>React学习</title>
+  <meta name="description" content="React首先是一个js库，然后才是一个构建UI的js库，又名React.js、ReactJS。React的出现主要是为了解决一个问题：创建数据持续变化的大型的应用。React不同于世面上的大部分MVC框架，大部分开发者只将其用作MVC中的V部分，而React最大的作用也就是在于创建 可以重用的，能实时反应数据变...">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/js/react/2016/03/22/react%E5%AD%A6%E4%B9%A0.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">React学习</h1>
+    <p class="post-meta">Mar 22, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>React首先是一个js库，然后才是一个构建UI的js库，又名React.js、ReactJS。React的出现主要是为了解决一个问题：创建数据持续变化的大型的应用。React不同于世面上的大部分MVC框架，大部分开发者只将其用作MVC中的V部分，而React最大的作用也就是在于创建 <strong>可以重用的，能实时反应数据变化的UI组件</strong> 。</p>
+
+<p>在最近几年，渐渐热门一种编程模式是响应式编程<a href="https://en.wikipedia.org/wiki/Reactive_programming">Reactive programming</a>, 响应式编程解决的最大问题就是当数据变化的时候，UI能根据数据变化自动更新。AngularJS, MeteorJS等框架就是响应式编程的实践者。而React相比而言更像是他们的进化版。</p>
+
+<p>为了实现React的既定目标，React做了非常多有意义的尝试。
+首先，React选择了相比于html更加灵活强大的javascript作为UI组件的编写语言，javascript相比于html有着更为强大的抽象能力。React还创造了JSX语法，方便组件的编写。</p>
+
+<p>其次，正如Pete Hunt说的，相比于AngularJS的数据绑定方式，React更像是游戏引擎，React每一帧都会对屏幕进行清空然后重绘，而传统的数据绑定，组件是一直存在的。Pete Hunt还为这两种模式创造了两个词， <strong>React是immediate-mode renderer，而数据绑定是retained mode</strong> 。基于这种思想，React创造了Virtual DOM，即在内存中创造数据结构的缓存，然后当数据变化的时候，得出数据结构的变化，然后快速更新DOM。而这些对使用者来说都是透明的，使用者只要刷新刷新，整个页面就会更新，其中的优化全部由React接管。</p>
+
+<p>另外，React还有一些非常有意思的设计思想，比如组件的嵌套，比如单向数据流动，以及后来出现并火爆的React-Native等都非常值得深入研究。</p>
+
+<p>总之，React中饱含着facebook工程师和大量开发者的智慧，可能还代表着未来webapp的发展方向，怎么能够不先睹为快呢?</p>
+
+<p>对于React历史感兴趣的同学还可以阅读下facebook前端工程师Christopher Chedeau的文章，<a href="http://thenewstack.io/javascripts-history-and-how-it-led-to-reactjs/">JavaScript’s History and How it Led To ReactJS</a>。</p>
+
+<p>是不是有同学已经迫不及待想一睹React芳容了呢？下面我们就来一步一步搭建React的开发框架，对于非前端开发工程师来说，这一部分还是挺麻烦的，有不少工具和概念需要了解。不过工欲善其事，必先利其器，了解了这些工具，对于我们以后的开发和调试，都有非常大的好处。好了，废话不多说，进入正题。</p>
+
+<h1 id="section">环境搭建</h1>
+<p>前端的环境搭建真的是一件比较痛苦而又舒爽的工作，为了不一下子把大家搞死，咱们先搭一个最简环境。什么？我不想浪费时间搭环境，我就想看看怎么用？那请移步访问<a href="https://github.com/kriasoft/react-starter-kit">react-starter-kit</a>;</p>
+
+<p>首先我们需要使用到npm，javascript的包管理工具，<code class="highlighter-rouge">npm init</code>主要是为了创建package.json文件，该文件用来管理依赖的各种包信息。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>npm init
+</code></pre>
+</div>
+
+<p>接下去安装react和react-dom包，这两个包就是React框架，必须安装的。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>npm install --save react
+npm install --save react-dom
+</code></pre>
+</div>
+<p>执行完毕之后，我们可以发现package.json文件中的dependencies中多了两项依赖。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="s2">"dependencies"</span>: <span class="o">{</span>
+    <span class="s2">"react"</span>: <span class="s2">"^0.14.7"</span>,
+    <span class="s2">"react-dom"</span>: <span class="s2">"^0.14.7"</span>
+<span class="o">}</span>
+</code></pre>
+</div>
+
+<p>为了方便开发调试，接下来我们安装webpack，webpack是一个资源打包工具包，为什么选择webpack，这是一个很深奥的问题，附上两个链接，希望能帮你解惑，<a href="https://github.com/petehunt/webpack-howto">如何使用webpack</a>,<a href="https://www.youtube.com/watch?v=VkTCL6Nqm6Y">How Instagram.com Works</a>。为啥这里是–save-dev呢，因为这个只需要开发调试的时候使用，真正上线的时候是不用的，npm真是贴心。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>npm install --save-dev webpack
+</code></pre>
+</div>
+
+<p>另外我们还需要启动一个本地server来方便调试，这里既然选择了webpack，就使用webpack的server了，-g 表示全局安装。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>npm install webpack-dev-server -g
+</code></pre>
+</div>
+
+<p>其实上面的配置走完了以后，就可以写基本的React应用了，但是，EcmaScript 6标准太好用了<a href="http://es6.ruanyifeng.com/">ES6学习</a>，我们还是麻烦一下装一个javascript的编译器，babel，方便我们将es6的代码转换成es5，以便在老的浏览器上奔跑。我们可以看下babel的口号：Use next generation JavaScript, today.</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>npm install --save-dev babel-loader
+npm install --save-dev babel-core
+npm install --save-dev babel-preset-es2015
+npm install --save-dev babel-preset-react
+</code></pre>
+</div>
+
+<p>最后，为了让webpack来管理打包以及转换一类的工作，我们还需要webpack.config.js这个文件，是webpack的配置文件，注意这里配置文件要根据实际情况来调整。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">path</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">'path'</span><span class="p">);</span>
+<span class="kd">var</span> <span class="nx">webpack</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">'webpack'</span><span class="p">);</span>
+ 
+<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">entry</span><span class="p">:</span> <span class="s1">'./main.js'</span><span class="p">,</span>
+  <span class="na">output</span><span class="p">:</span> <span class="p">{</span> <span class="na">path</span><span class="p">:</span> <span class="nx">__dirname</span><span class="p">,</span> <span class="na">filename</span><span class="p">:</span> <span class="s1">'bundle.js'</span> <span class="p">},</span>
+  <span class="na">module</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">loaders</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span>
+        <span class="na">test</span><span class="p">:</span> <span class="sr">/.jsx</span><span class="se">?</span><span class="sr">$/</span><span class="p">,</span>
+        <span class="na">loader</span><span class="p">:</span> <span class="s1">'babel-loader'</span><span class="p">,</span>
+        <span class="na">exclude</span><span class="p">:</span> <span class="sr">/node_modules/</span><span class="p">,</span>
+        <span class="na">query</span><span class="p">:</span> <span class="p">{</span>
+          <span class="na">presets</span><span class="p">:</span> <span class="p">[</span><span class="s1">'es2015'</span><span class="p">,</span> <span class="s1">'react'</span><span class="p">]</span>
+        <span class="p">}</span>
+      <span class="p">}</span>
+    <span class="p">]</span>
+  <span class="p">},</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+
+<p>迫不及待了，赶紧试一下。
+创建如下几个文件</p>
+
+<ul>
+  <li>index.html</li>
+</ul>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="cp">&lt;!doctype html&gt;</span>
+<span class="nt">&lt;html&gt;</span>
+  <span class="nt">&lt;head&gt;</span>
+    <span class="nt">&lt;meta</span> <span class="na">charset=</span><span class="s">"UTF-8"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;title&gt;</span>Hello React<span class="nt">&lt;/title&gt;</span>
+  <span class="nt">&lt;/head&gt;</span>
+  <span class="nt">&lt;body&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"hello"</span><span class="nt">&gt;&lt;/div&gt;</span>
+    <span class="nt">&lt;script </span><span class="na">src=</span><span class="s">"bundle.js"</span><span class="nt">&gt;&lt;/script&gt;</span>
+  <span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre>
+</div>
+
+<ul>
+  <li>main.js</li>
+</ul>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kr">import</span> <span class="nx">React</span> <span class="nx">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kr">import</span> <span class="nx">ReactDOM</span> <span class="nx">from</span> <span class="s1">'react-dom'</span><span class="p">;</span>
+<span class="kr">import</span> <span class="nx">Hello</span> <span class="nx">from</span> <span class="s1">'./hello.jsx'</span><span class="p">;</span>
+
+<span class="nx">ReactDOM</span><span class="p">.</span><span class="nx">render</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">Hello</span><span class="o">/&gt;</span><span class="p">,</span> <span class="nb">document</span><span class="p">.</span><span class="nx">getElementById</span><span class="p">(</span><span class="s1">'hello'</span><span class="p">));</span>
+
+</code></pre>
+</div>
+
+<ul>
+  <li>hello.jsx</li>
+</ul>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="kr">import</span> <span class="nx">React</span> <span class="nx">from</span> <span class="s1">'react'</span><span class="p">;</span>
+<span class="kr">import</span> <span class="nx">ReactDOM</span> <span class="nx">from</span> <span class="s1">'react-dom'</span><span class="p">;</span>
+ 
+<span class="kr">class</span> <span class="nx">Hello</span> <span class="kr">extends</span> <span class="nx">React</span><span class="p">.</span><span class="nx">Component</span> <span class="p">{</span>
+  <span class="nx">render</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="o">&lt;</span><span class="nx">h1</span><span class="o">&gt;</span><span class="nx">Hello</span><span class="o">&lt;</span><span class="sr">/h1</span><span class="err">&gt;
+</span>  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nx">module</span><span class="p">.</span><span class="nx">exports</span> <span class="o">=</span> <span class="nx">Hello</span><span class="p">;</span>
+</code></pre>
+</div>
+
+<p>整理的目录结构如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>- index.html
+- main.js
+- hello.jsx
+- webpack.config.js
+- package.json
+- node_modules/
+</code></pre>
+</div>
+
+<p>一切准备就绪之后，执行<code class="highlighter-rouge">webpack-dev-server --progress --colors</code>，webpack执行成功之后，在浏览器输入http://localhost:8080/。
+Amazing， isn’t it！</p>
+
+<p>这样咱们的开发环境基本算是搞完了，现在就可以做一些修改，写一些demo，刷新页面之后就能看见效果了。对于我们这种懒都已经进入骨髓的人来说，这样就够了么？能不能把手动刷新也干掉呢？实时显示变化？当然可以，<a href="http://gaearon.github.io/react-hot-loader/getstarted/">react-hot-loader</a>就能实现我们想要的一切。具体的配置可以参考<a href="https://github.com/gaearon/react-hot-boilerplate">react-hot-boilerlate</a>，在这里配置的时候遇到了一点点小坑，当loader只有一个的时候，query可以单独是一个kv队，而当loaders是一个数组的时候，必须要将query参数用？跟在loader后面，具体可以参考<a href="http://webpack.github.io/docs/using-loaders.html#query-parameters">webpack query-parameters</a>，完整的配置信息如下：</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>var path <span class="o">=</span> require<span class="o">(</span><span class="s1">'path'</span><span class="o">)</span>;
+var webpack <span class="o">=</span> require<span class="o">(</span><span class="s1">'webpack'</span><span class="o">)</span>;
+
+module.exports <span class="o">=</span> <span class="o">{</span>
+  entry: <span class="o">[</span><span class="s1">'webpack-dev-server/client?http://0.0.0.0:3000'</span>, // WebpackDevServer host and port
+    <span class="s1">'webpack/hot/only-dev-server'</span>, // <span class="s2">"only"</span> prevents reload on syntax errors
+    <span class="s1">'./main.js'</span>
+  <span class="o">]</span>,
+  output: <span class="o">{</span>
+    path: __dirname,
+    filename: <span class="s1">'bundle.js'</span>
+  <span class="o">}</span>,
+  module: <span class="o">{</span>
+    loaders: <span class="o">[{</span>
+      <span class="nb">test</span>: /.jsx?<span class="nv">$/</span>,
+      loaders: <span class="o">[</span><span class="s1">'react-hot'</span>, <span class="s1">'babel-loader?presets[]=react,presets[]=es2015'</span><span class="o">]</span>,
+      exclude: /node_modules/,
+    <span class="o">}]</span>
+  <span class="o">}</span>,
+  plugins: <span class="o">[</span>
+    new webpack.HotModuleReplacementPlugin<span class="o">()</span>
+  <span class="o">]</span>,
+  resolve: <span class="o">{</span>
+        extensions: <span class="o">[</span><span class="s1">''</span>, <span class="s1">'.js'</span>, <span class="s1">'.jsx'</span><span class="o">]</span>
+  <span class="o">}</span>
+<span class="o">}</span>;
+</code></pre>
+</div>
+<p>需要注意的是，react-hot-loader只有在被export的对象中修改render方法才会生效，这是和React的机制保持吻合的。好啦，环境搭建完成后，就可以享受React时光了。</p>
+
+<p>其实React并没有限制应用者使用各种各样的js工具，看看大神们都为我们准备了哪些工具，请点击<a href="https://github.com/facebook/react/wiki/Complementary-Tools">Complementary-Tools</a>，请自便。</p>
+
+<h1 id="virtual-dom--data-flow--props-vs-state--jsx">Virtual DOM &amp;&amp; Data Flow &amp;&amp; props vs state &amp;&amp; JSX</h1>
+
+<h1 id="section-1">参考文献</h1>
+<ul>
+  <li><a href="https://en.wikipedia.org/wiki/React_(JavaScript_library)">wikipedia</a></li>
+  <li><a href="https://facebook.github.io/react/blog/2013/06/05/why-react.html">Why did we build React?</a></li>
+  <li><a href="http://www.infoworld.com/article/2608181/javascript/react--making-faster--smoother-uis-for-data-driven-web-apps.html">React: Making faster, smoother UIs for data-driven Web apps</a></li>
+  <li><a href="http://facebook.github.io/react/docs/thinking-in-react.html">Thinking in React</a></li>
+  <li><a href="https://www.twilio.com/blog/2015/08/setting-up-react-for-es6-with-webpack-and-babel-2.html">Setting up React for ES6 with Webpack and Babel</a></li>
+  <li><a href="http://www.infoq.com/cn/articles/react-and-webpack">react and webpack</a></li>
+</ul>
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-03-22 00:00:00 +0800" data-title="React学习" data-url="/js/react/2016/03/22/react%E5%AD%A6%E4%B9%A0.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

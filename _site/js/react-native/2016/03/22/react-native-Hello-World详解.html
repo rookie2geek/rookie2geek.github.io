@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>React Native Hello World详解</title>
+  <meta name="description" content="直入主题怎么搞React Native。">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/js/react-native/2016/03/22/react-native-Hello-World%E8%AF%A6%E8%A7%A3.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">React Native Hello World详解</h1>
+    <p class="post-meta">Mar 22, 2016</p>
+  </header>
+
+  <article class="post-content">
+    <p>直入主题怎么搞React Native。</p>
+
+<h1 id="helloworld">如何创建Helloworld</h1>
+<p>请查阅google，或者本人上一篇blog</p>
+
+<h1 id="hello-world">Hello World</h1>
+<p>因为react native不仅包括js，还包括native，这里我们需要将他们分开来看。首先看native，打开HelloWorld工程。我们可以发现代码结构非常简单，除了多了一个Libraries，和我们全新创建一个SinglePage Application也没有什么大的区别。展开Libraries，我们可以看到一堆工程，正式因为这些工程的存在，才使得js和native之间的交互成为可能。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">//</span> <span class="err">该工程是</span><span class="nc">React</span> <span class="nf">Native</span><span class="err">的核心工程，实现了js和native之间桥的功能</span>
+<span class="err">//</span> <span class="err">实现了布局、模块以及大量的基础UI等。</span>
+<span class="err">//</span> <span class="err">该工程下的代码体现了fb工程师的大量智慧，值得深入研究</span>
+<span class="nc">React</span>  <span class="nf">??</span><span class="err">这是什么鬼？</span>
+
+<span class="err">//</span> <span class="err">ActionSheet组件</span>
+<span class="nf">RCTActionSheet</span>
+
+<span class="err">//</span> <span class="err">地址位置组件</span>
+<span class="nf">RCTGeolocation</span>
+
+<span class="err">//</span> <span class="err">图片操作组件</span>
+<span class="nf">RCTImage</span>
+
+<span class="err">//</span> <span class="err">连接组件</span>
+<span class="nf">RCTLinking</span>
+
+<span class="err">//</span> <span class="err">网络组件</span>
+<span class="nf">RCTNetwork</span>
+
+<span class="err">//</span> <span class="err">设置组件</span>
+<span class="nf">RCTSetting</span>
+
+<span class="err">//</span> <span class="err">文本组件</span>
+<span class="nc">RCTText</span>  <span class="nf">??</span><span class="err">这是什么鬼？</span>
+
+<span class="err">//</span> <span class="err">震动组件</span>
+<span class="nf">RCTVibration</span>
+
+<span class="err">//</span> <span class="err">web端口组件</span>
+<span class="nf">RCTWebSocket</span>
+</code></pre>
+</div>
+
+<p>从上面的注释可以看出来，每个组件都给js提供了某种native的能力，而所有人都可以开发自己的组件，然后共享给别人<a href="https://js.coach/react-native">JS Coach</a>。可以想见，未来React Native的能力会越来越强大，做到以前js不能做到的好多事情。</p>
+
+<p>然后我们看看AppDelegate的中的不一样的地方。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">-</span> <span class="p">(</span><span class="nc">BOOL</span><span class="p">)</span><span class="nf">application:</span><span class="p">(</span><span class="nc">UIApplication</span> <span class="nf">*</span><span class="p">)</span><span class="nf">application</span> <span class="nf">didFinishLaunchingWithOptions:</span><span class="p">(</span><span class="nc">NSDictionary</span> <span class="nf">*</span><span class="p">)</span><span class="nf">launchOptions</span>
+<span class="p">{</span>
+  <span class="nc">NSURL</span> <span class="nf">*</span><span class="nv">jsCodeLocation</span><span class="p">;</span>
+
+  <span class="nf">//</span> <span class="err">选择</span><span class="m">1</span><span class="err">：从webserver获取</span><span class="nv">js</span> <span class="nf">bundle</span>
+  <span class="nf">jsCodeLocation</span> <span class="nf">=</span> <span class="p">[</span><span class="nc">NSURL</span> <span class="nf">URLWithString:</span><span class="err">@</span><span class="c">"http://localhost:8081/index.ios.bundle?platform=ios&amp;dev=true"</span><span class="p">];</span>
+
+   <span class="nf">//</span> <span class="err">选择</span><span class="m">2</span><span class="err">：从预先打好的bundle文件中获取</span><span class="nv">js</span> 
+   <span class="nf">//</span> <span class="nv">jsCodeLocation</span> <span class="nf">=</span> <span class="p">[[</span><span class="nc">NSBundle</span> <span class="nf">mainBundle</span><span class="p">]</span> <span class="nf">URLForResource:</span><span class="err">@</span><span class="c">"main"</span> <span class="err">withExtension:@</span><span class="c">"jsbundle"</span><span class="p">];</span>
+
+  <span class="nf">//</span> <span class="err">创建了一个</span><span class="nc">RCTRootView</span><span class="err">，该View绑定了Bundle的</span><span class="nc">Url</span><span class="err">，模块名字等信息。??RCTRootView是什么鬼？</span>
+  <span class="nc">RCTRootView</span> <span class="nf">*</span><span class="nv">rootView</span> <span class="nf">=</span> <span class="p">[[</span><span class="nc">RCTRootView</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithBundleURL:</span><span class="nv">jsCodeLocation</span>
+                                                      <span class="nf">moduleName:</span><span class="err">@</span><span class="c">"Helloworld"</span>
+                                               <span class="nf">initialProperties:</span><span class="nv">nil</span>
+                                                   <span class="nf">launchOptions:</span><span class="nv">launchOptions</span><span class="p">];</span>
+
+  <span class="nf">//</span> <span class="err">和以前差不多，就是把view加到window上。</span>
+  <span class="bp">self</span><span class="p">.</span><span class="nv">window</span> <span class="nf">=</span> <span class="p">[[</span><span class="nc">UIWindow</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithFrame:</span><span class="p">[</span><span class="nc">UIScreen</span> <span class="nf">mainScreen</span><span class="p">].</span><span class="nv">bounds</span><span class="p">];</span>
+  <span class="nf">UIViewController</span> <span class="nf">*</span><span class="nv">rootViewController</span> <span class="nf">=</span> <span class="p">[</span><span class="nc">UIViewController</span> <span class="nb">new</span><span class="p">];</span>
+  <span class="nf">rootViewController</span><span class="p">.</span><span class="nv">view</span> <span class="nf">=</span> <span class="nv">rootView</span><span class="p">;</span>
+  <span class="nf">self</span><span class="p">.</span><span class="nv">window</span><span class="p">.</span><span class="nv">rootViewController</span> <span class="nf">=</span> <span class="nv">rootViewController</span><span class="p">;</span>
+  <span class="p">[</span><span class="bp">self</span><span class="p">.</span><span class="nv">window</span> <span class="nf">makeKeyAndVisible</span><span class="p">];</span>
+  <span class="nf">return</span> <span class="nf">YES</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>其实上面的代码已经非常直观，RCTRootView是一个比较特殊的view，其会从jsCodeLocation中获取js，并根据ModuleName以及其他参数执行相关操作，也就是将js的执行装换成native的界面显示。ok，看到这里，我们先放下很多疑问，可以确定的是，我们的在Native这一段已经有了js的承载，是时候让index.ios.js上场了。
+index.ios.js是APP起来的时候拉取的js，一起来看下这个js干了啥。代码不是很长，我们划分一下就比较清晰了。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="s1">'use strict'</span><span class="p">;</span> <span class="c1">// js语法，不关心</span>
+
+<span class="c1">// 从react-native中导入相应的模块 ??react-native是什么鬼？</span>
+<span class="kr">import</span> <span class="nx">React</span><span class="p">,</span> <span class="p">{</span>
+  <span class="nx">AppRegistry</span><span class="p">,</span>
+  <span class="nx">Component</span><span class="p">,</span>
+  <span class="nx">StyleSheet</span><span class="p">,</span>
+  <span class="nx">Text</span><span class="p">,</span>
+  <span class="nx">View</span>
+<span class="p">}</span> <span class="nx">from</span> <span class="s1">'react-native'</span><span class="p">;</span>
+
+
+<span class="c1">// 定义了一个Helloword的组件，因为我们发现他是继承自Component的 ??Component是什么鬼？</span>
+<span class="kr">class</span> <span class="nx">Helloworld</span> <span class="kr">extends</span> <span class="nx">Component</span> <span class="p">{</span>
+  <span class="nx">render</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">(</span>
+      <span class="o">&lt;</span><span class="nx">View</span> <span class="nx">style</span><span class="o">=</span><span class="p">{</span><span class="nx">styles</span><span class="p">.</span><span class="nx">container</span><span class="p">}</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="nx">Text</span> <span class="nx">style</span><span class="o">=</span><span class="p">{</span><span class="nx">styles</span><span class="p">.</span><span class="nx">welcome</span><span class="p">}</span><span class="o">&gt;</span>
+          <span class="nx">Welcome</span> <span class="nx">to</span> <span class="nx">React</span> <span class="nx">Native4</span><span class="o">!</span>
+        <span class="o">&lt;</span><span class="sr">/Text</span><span class="err">&gt;
+</span>        <span class="o">&lt;</span><span class="nx">Text</span> <span class="nx">style</span><span class="o">=</span><span class="p">{</span><span class="nx">styles</span><span class="p">.</span><span class="nx">instructions</span><span class="p">}</span><span class="o">&gt;</span>
+          <span class="nx">To</span> <span class="nx">get</span> <span class="nx">started</span><span class="p">,</span> <span class="nx">edit</span> <span class="nx">index</span><span class="p">.</span><span class="nx">ios</span><span class="p">.</span><span class="nx">js</span>
+        <span class="o">&lt;</span><span class="sr">/Text</span><span class="err">&gt;
+</span>        <span class="o">&lt;</span><span class="nx">Text</span> <span class="nx">style</span><span class="o">=</span><span class="p">{</span><span class="nx">styles</span><span class="p">.</span><span class="nx">instructions</span><span class="p">}</span><span class="o">&gt;</span>
+          <span class="nx">Press</span> <span class="nx">Cmd</span><span class="o">+</span><span class="nx">R</span> <span class="nx">to</span> <span class="nx">reload</span><span class="p">,{</span><span class="s1">'\n'</span><span class="p">}</span>
+          <span class="nx">Cmd</span><span class="o">+</span><span class="nx">D</span> <span class="nx">or</span> <span class="nx">shake</span> <span class="k">for</span> <span class="nx">dev</span> <span class="nx">menu</span>
+        <span class="o">&lt;</span><span class="sr">/Text</span><span class="err">&gt;
+</span>      <span class="o">&lt;</span><span class="sr">/View</span><span class="err">&gt;
+</span>    <span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// 这非常像CSS，一定是用来布局的  ??StyleSheet是什么鬼？</span>
+<span class="kr">const</span> <span class="nx">styles</span> <span class="o">=</span> <span class="nx">StyleSheet</span><span class="p">.</span><span class="nx">create</span><span class="p">({</span>
+  <span class="na">container</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">flex</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="na">justifyContent</span><span class="p">:</span> <span class="s1">'center'</span><span class="p">,</span>
+    <span class="na">alignItems</span><span class="p">:</span> <span class="s1">'center'</span><span class="p">,</span>
+    <span class="na">backgroundColor</span><span class="p">:</span> <span class="s1">'#F5FCFF'</span><span class="p">,</span>
+  <span class="p">},</span>
+  <span class="na">welcome</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">fontSize</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span>
+    <span class="na">textAlign</span><span class="p">:</span> <span class="s1">'center'</span><span class="p">,</span>
+    <span class="na">margin</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+  <span class="p">},</span>
+  <span class="na">instructions</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">textAlign</span><span class="p">:</span> <span class="s1">'center'</span><span class="p">,</span>
+    <span class="na">color</span><span class="p">:</span> <span class="s1">'#333333'</span><span class="p">,</span>
+    <span class="na">marginBottom</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+  <span class="p">},</span>
+<span class="p">});</span>
+
+<span class="c1">// 这里执行了前面定义的Helloworld组件 ?? AppRegistry是什么鬼？</span>
+<span class="nx">AppRegistry</span><span class="p">.</span><span class="nx">registerComponent</span><span class="p">(</span><span class="s1">'Helloworld'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">Helloworld</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<h1 id="native">native端技术解析</h1>
+<p>好吧，你都跑起来了，你说啥就是啥了，但我还是想问一句，前面这些鬼到底是什么鬼？我们一起来捋一下。
+## 鬼-React
+React工程是React Native在Native端的核心工程，其最主要的功能是实现提供js和native之间通信的机制，并基于这种机制封装一系列功能供js和native之间的交互。因为这一块逻辑较为复杂，细节很多，在这里就不详述，后续会有文章专门对此进行分析。大家只要记住，React创建了Native这一段和js通信的Bridge，并且基于bridge提供了基本的交互能力，ui扩展能力，module扩展能力等等。</p>
+
+<h2 id="rctrootview">鬼-RCTRootView</h2>
+<p>RCTRootView有点类似Native的window，其被用来作为React管理的views的宿主view，也就是说我们每开发一个新的react的页面（viewController），必须用RCTRootView作为宿主view。其可以通过指定moduleName来实现有效的隔离，也可以指定loadingView来实现加载过程中的loading效果。</p>
+
+<h2 id="rcttextview">鬼-RCTTextView</h2>
+<p>React的架构是支持component扩展的，这也是必须的，RCTTextView就是react native自带的View扩展之一，非常基本，正好借此机会学习下如何扩展View，增加js的能力。
+一般ui扩展都是通过继承RCTViewManager来实现的，而RCTTextView是通过RCTTextViewManager来实现扩展的。下面简单看一下RCTTextViewmanager的代码。</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="err">//</span> <span class="nc">RCTTextViewManager</span><span class="p">.</span><span class="nv">h</span>
+<span class="nf">@</span><span class="nv">interface</span> <span class="nf">RCTTextViewManager</span> <span class="err">:</span> <span class="nc">RCTViewManager</span>
+<span class="nf">@</span><span class="nv">end</span>
+
+
+<span class="nf">//</span> <span class="nc">RCTTextViewManager</span><span class="p">.</span><span class="nv">m</span>
+<span class="nf">@</span><span class="nv">implementation</span> <span class="nf">RCTTextViewManager</span>
+
+<span class="nf">RCT_EXPORT_MODULE</span><span class="p">()</span>
+
+<span class="nf">-</span> <span class="p">(</span><span class="nc">UIView</span> <span class="nf">*</span><span class="p">)</span><span class="nf">view</span>
+<span class="p">{</span>
+  <span class="nv">return</span> <span class="p">[[</span><span class="nc">RCTTextView</span> <span class="nf">alloc</span><span class="p">]</span> <span class="nf">initWithEventDispatcher:</span><span class="bp">self</span><span class="p">.</span><span class="nv">bridge</span><span class="p">.</span><span class="nv">eventDispatcher</span><span class="p">];</span>
+<span class="p">}</span>
+
+<span class="nf">RCT_REMAP_VIEW_PROPERTY</span><span class="p">(</span><span class="nv">autoCapitalize</span><span class="nf">,</span> <span class="nv">textView</span><span class="p">.</span><span class="nv">autocapitalizationType</span><span class="nf">,</span> <span class="nc">UITextAutocapitalizationType</span><span class="p">)</span>
+<span class="nf">RCT_EXPORT_VIEW_PROPERTY</span><span class="p">(</span><span class="nv">autoCorrect</span><span class="nf">,</span> <span class="nc">BOOL</span><span class="p">)</span>
+<span class="p">.</span><span class="err">.....</span>
+<span class="nc">RCT_CUSTOM_VIEW_PROPERTY</span><span class="p">(</span><span class="nv">fontSize</span><span class="nf">,</span> <span class="nc">CGFloat</span><span class="nf">,</span> <span class="nc">RCTTextView</span><span class="p">)</span>
+<span class="p">{</span>
+  <span class="nv">view</span><span class="p">.</span><span class="nv">font</span> <span class="nf">=</span> <span class="p">[</span><span class="nc">RCTConvert</span> <span class="nf">UIFont:</span><span class="nv">view</span><span class="p">.</span><span class="nv">font</span> <span class="nf">withSize:</span><span class="nv">json</span> <span class="nf">?</span><span class="err">:</span> <span class="err">@</span><span class="p">(</span><span class="nv">defaultView</span><span class="p">.</span><span class="nv">font</span><span class="p">.</span><span class="nv">pointSize</span><span class="p">)];</span>
+<span class="p">}</span>
+<span class="p">.</span><span class="err">......</span>
+</code></pre>
+</div>
+
+<p>下面简单总结一下扩展UIView的方法。
+首先，RCTTextViewManager是继承自RCTViewManager的。
+其次，通过宏RCT_EXPORT_MODULE()实现module暴露给js
+再次，实现<code class="highlighter-rouge">- (UIView *)view</code>，返回view
+最后，RCT_REMAP_VIEW_PROPERTY()、RCT_EXPORT_VIEW_PROPERTY()、RCT_CUSTOM_VIEW_PROPERTY()等宏实现属性暴露给js</p>
+
+<p>这里有很多技术细节，比如</p>
+
+<ul>
+  <li>RCT_EXPORT_MODULE()的原理是什么？</li>
+  <li>什么是Module，为啥要暴露Module给js呢？原理是什么呢？</li>
+  <li>RCT_REMAP_VIEW_PROPERTY()、RCT_EXPORT_VIEW_PROPERTY()等是怎么实现的？</li>
+  <li>RCT_EXPORT_SHADOW_PROPERTY()为啥还有Shadow?</li>
+  <li>Native和js函数之间的参数是如何转换的呢？</li>
+</ul>
+
+<p>这些都是更加基础的问题，建议有精力的同学可以阅读更多的文章，阅读源码，深入研究下。</p>
+
+<h1 id="js">js端技术解析</h1>
+
+<h2 id="react-native">鬼-react-native</h2>
+
+<h2 id="component">鬼-Component</h2>
+
+<h2 id="stylesheet">鬼-StyleSheet</h2>
+
+<h2 id="appregistry">鬼-AppRegistry</h2>
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2016-03-22 00:00:00 +0800" data-title="React Native Hello World详解" data-url="/js/react-native/2016/03/22/react-native-Hello-World%E8%AF%A6%E8%A7%A3.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>

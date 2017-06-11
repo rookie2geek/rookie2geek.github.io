@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>    
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width initial-scale=1">
+
+  <title>实用命令</title>
+  <meta name="description" content="常用的各种命令的集合">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://rookie-nerd.github.io/linux/shell/svn/cheatsheet/2015/06/02/%E5%AE%9E%E7%94%A8%E5%91%BD%E4%BB%A4.html">
+  <link rel="alternate" type="application/atom+xml" title="Rookie-nerd's Tech Notes" href="http://rookie-nerd.github.io/feed.xml" />
+  <script src="/scripts/jquery-1.11.2.min.js"></script>
+  <script src="/scripts/pithy.js"></script>
+  <script src="/scripts/toc.js"></script>
+</head>
+
+
+  <body>
+    <header class="header">
+	<div class="header-container">
+		<div class="nav">
+			
+				<li>
+					<a href="/index.html">home</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/archive.html">archive</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/category.html">category</a>
+				</li>			
+			
+			
+				<li>
+					<a href="/about.html">about</a>
+				</li>			
+			
+		</div>
+		<div class="description">  </div>		
+		<ul class="social-links">
+			<li>
+				<a href="https://github.com/" title="Github">
+					<img width="19px" height="19px" src="/images/github.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="/feed.xml" title="RSS">
+					<img width="19px" height="19px" src="/images/rss.png"/>
+				</a>
+			</li>
+			<li>
+				<a href="https://twitter.com/" title="Twitter">
+					<img width="19px" height="19px" src="/images/twitter.png"/>
+				</a>
+			</li>
+		</ul>		
+	</div>
+</header>
+
+    <br>
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="post">
+  <div id="toc"></div>
+  <br>
+  <header class="post-header">
+    <h1 class="post-title">实用命令</h1>
+    <p class="post-meta">Jun 2, 2015</p>
+  </header>
+
+  <article class="post-content">
+    <p>常用的各种命令的集合</p>
+
+<h1 id="git">git</h1>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c"># log</span>
+git log --since<span class="o">=</span>2016-07-23 --pretty<span class="o">=</span>format:<span class="s2">"%s %cn %cd"</span> --no-merges --date<span class="o">=</span>short
+<span class="c">#output: D:[压后台不去掉授权登录页] xxx 2016-07-27</span>
+
+<span class="c"># clean local refs</span>
+git fetch origin --prune
+</code></pre>
+</div>
+
+<h1 id="shell">shell</h1>
+
+<h2 id="referencedatehttpman7orglinuxman-pagesman1date1html">按照特定的格式获取当前时间 <a href="http://man7.org/linux/man-pages/man1/date.1.html">Reference:date</a></h2>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c">#linux</span>
+date +<span class="s2">"%Y-%m-%d %H:%M:%S"</span>
+<span class="c">#output: 2015-06-02 14:45:53</span>
+
+<span class="c">#mac</span>
+date -r 1426163387 +<span class="s2">"%Y-%m-%d"</span>
+<span class="c">#output: 2015-03-12</span>
+</code></pre>
+</div>
+
+<h2 id="section">在命令行打开相应的程序</h2>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c">#mac</span>
+open .  <span class="c"># 使用finder打开当前目录</span>
+open -a Xcode <span class="k">*</span>.xcodeproj <span class="c"># 使用特定的程序打开文件</span>
+</code></pre>
+</div>
+
+<h2 id="sed">流编辑器，sed</h2>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c">#linux</span>
+sed -i <span class="s1">'s/old_link/new_link/g'</span> <span class="k">*</span>
+
+<span class="c">#mac</span>
+sed -i <span class="s1">'.original'</span> <span class="s1">'s/old_link/new_link/g'</span> <span class="k">*</span> 	// -i 后面必须指定备份的后缀名
+sed -i <span class="s1">''</span> <span class="s1">'s/old_link/new_link/g'</span> <span class="k">*</span>				// -i 后面如果是空的话，表明忽略后缀名
+</code></pre>
+</div>
+
+<h1 id="svn">svn</h1>
+<div class="highlighter-rouge"><pre class="highlight"><code><span class="c"># 获取全部的ignore列表</span>
+svn pg -R svn:ignore .
+
+<span class="c"># svn ps svn:ignore</span>
+svn propset svn:ignore <span class="s2">"first
+ second
+ third"</span> .
+
+<span class="c"># 指定文件提交</span>
+svn changelist sub sub.c sub.h
+svn cl --remove sub.c
+svn diff --cl sub
+svn ci --changelist sub -m <span class="s2">"sub"</span>
+</code></pre>
+</div>
+
+  </article>
+</div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+  <!-- 多说评论框 start -->
+  <div class="ds-thread" data-thread-key="2015-06-02 22:45:53 +0800" data-title="实用命令" data-url="/linux/shell/svn/cheatsheet/2015/06/02/%E5%AE%9E%E7%94%A8%E5%91%BD%E4%BB%A4.html"></div>
+  <!-- 多说评论框 end -->
+  <!-- 多说最新评论 start -->
+  <div class="ds-recent-comments" data-num-items="5" data-show-avatars="1" data-show-time="1" data-show-title="1" data-show-admin="1" data-excerpt-length="70"></div>
+  <!-- 多说最新评论 end -->
+  <!-- 多说公共JS代码 start (一个网页只需插入一次) -->
+  <script type="text/javascript">
+  var duoshuoQuery = {short_name:"rookie-nerd"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0] 
+       || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+    </script>
+  <!-- 多说公共JS代码 end -->
+  <div id="gotop">^</div>
+  <br>
+	@2015 Pithy Theme by Pawpaw.
+</footer>
+
+    
+  </body>
+
+</html>
